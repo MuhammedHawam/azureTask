@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace ImperialBackend.Application.Outlets.Queries.GetOutlets;
 
 /// <summary>
-/// Handler for GetOutletsQuery with optimized performance
+/// Handler for GetOutletsQuery with optimized performance and comprehensive filtering
 /// </summary>
 public class GetOutletsQueryHandler : IRequestHandler<GetOutletsQuery, Result<PagedResult<OutletDto>>>
 {
@@ -33,7 +33,7 @@ public class GetOutletsQueryHandler : IRequestHandler<GetOutletsQuery, Result<Pa
     }
 
     /// <summary>
-    /// Handles the GetOutletsQuery request
+    /// Handles the GetOutletsQuery request with comprehensive filtering and sorting
     /// </summary>
     /// <param name="request">The query request</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -42,8 +42,22 @@ public class GetOutletsQueryHandler : IRequestHandler<GetOutletsQuery, Result<Pa
     {
         try
         {
-            _logger.LogDebug("Handling GetOutletsQuery - Page: {PageNumber}, PageSize: {PageSize}",
-                request.PageNumber, request.PageSize);
+            _logger.LogInformation("Getting outlets - Page: {PageNumber}, PageSize: {PageSize}, Filters: {@Filters}",
+                request.PageNumber, request.PageSize, new
+                {
+                    request.Tier,
+                    request.ChainType,
+                    request.IsActive,
+                    request.City,
+                    request.State,
+                    request.SearchTerm,
+                    request.MinRank,
+                    request.MaxRank,
+                    request.NeedsVisit,
+                    request.HighPerforming,
+                    request.SortBy,
+                    request.SortDirection
+                });
 
             // Validate pagination parameters
             if (request.PageNumber < 1)
@@ -56,27 +70,54 @@ public class GetOutletsQueryHandler : IRequestHandler<GetOutletsQuery, Result<Pa
                 return Result<PagedResult<OutletDto>>.Failure("Page size must be between 1 and 100");
             }
 
-            // Get outlets with pagination
+            // Get outlets with all filters applied at database level
             var outlets = await _outletRepository.GetAllAsync(
-                request.PageNumber,
-                request.PageSize,
-                cancellationToken);
+                tier: request.Tier,
+                chainType: request.ChainType,
+                isActive: request.IsActive,
+                city: request.City,
+                state: request.State,
+                searchTerm: request.SearchTerm,
+                minRank: request.MinRank,
+                maxRank: request.MaxRank,
+                needsVisit: request.NeedsVisit,
+                maxDaysSinceVisit: request.MaxDaysSinceVisit,
+                highPerforming: request.HighPerforming,
+                minAchievementPercentage: request.MinAchievementPercentage,
+                pageNumber: request.PageNumber,
+                pageSize: request.PageSize,
+                sortBy: request.SortBy,
+                sortDirection: request.SortDirection,
+                cancellationToken: cancellationToken);
 
-            // Get total count for pagination
-            var totalCount = await _outletRepository.GetCountAsync(cancellationToken);
+            // Get total count with same filters
+            var totalCount = await _outletRepository.GetCountAsync(
+                tier: request.Tier,
+                chainType: request.ChainType,
+                isActive: request.IsActive,
+                city: request.City,
+                state: request.State,
+                searchTerm: request.SearchTerm,
+                minRank: request.MinRank,
+                maxRank: request.MaxRank,
+                needsVisit: request.NeedsVisit,
+                maxDaysSinceVisit: request.MaxDaysSinceVisit,
+                highPerforming: request.HighPerforming,
+                minAchievementPercentage: request.MinAchievementPercentage,
+                cancellationToken: cancellationToken);
 
             // Map to DTOs
             var outletDtos = _mapper.Map<IEnumerable<OutletDto>>(outlets);
 
-            // Create paged result using constructor
+            // Create paged result
             var pagedResult = new PagedResult<OutletDto>(
                 outletDtos,
                 totalCount,
                 request.PageNumber,
                 request.PageSize);
 
-            _logger.LogDebug("Successfully retrieved {Count} outlets (Page {PageNumber}/{TotalPages})",
-                outletDtos.Count(), request.PageNumber, pagedResult.TotalPages);
+            _logger.LogInformation("Successfully retrieved {Count} outlets out of {TotalCount} total (Page {PageNumber}/{TotalPages})",
+                pagedResult.Count, pagedResult.TotalCount, request.PageNumber, pagedResult.TotalPages);
 
             return Result<PagedResult<OutletDto>>.Success(pagedResult);
         }

@@ -47,7 +47,19 @@ public class CreateOutletCommandHandler : IRequestHandler<CreateOutletCommand, R
             _logger.LogInformation("Creating outlet: {Name} in {City}, {State}", 
                 request.Name, request.Address.City, request.Address.State);
 
-            // Note: Duplicate validation removed for performance - can be added back if needed
+            // Check if outlet with same name and location already exists
+            var existingOutlet = await _outletRepository.ExistsWithNameAndLocationAsync(
+                request.Name, 
+                request.Address.City, 
+                request.Address.State, 
+                cancellationToken: cancellationToken);
+
+            if (existingOutlet)
+            {
+                _logger.LogWarning("Outlet with name {Name} already exists in {City}, {State}", 
+                    request.Name, request.Address.City, request.Address.State);
+                return Result<OutletDto>.Failure($"Outlet '{request.Name}' already exists in {request.Address.City}, {request.Address.State}");
+            }
 
             // Create the Address value object
             var address = new Address(

@@ -4,6 +4,7 @@ using ImperialBackend.Application.DTOs;
 using ImperialBackend.Application.Outlets.Commands.CreateOutlet;
 using ImperialBackend.Application.Outlets.Queries.GetOutlets;
 using ImperialBackend.Domain.Enums;
+using ImperialBackend.Domain.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,175 +39,180 @@ public class OutletsController : ControllerBase
     }
 
     /// <summary>
-    /// Gets outlets with optional filtering and pagination
+    /// Gets outlets with pagination
     /// </summary>
-    /// <param name="tier">Filter by tier</param>
-    /// <param name="chainType">Filter by chain type (1=Regional, 2=National)</param>
-    /// <param name="isActive">Filter by active status</param>
-    /// <param name="city">Filter by city</param>
-    /// <param name="state">Filter by state</param>
-    /// <param name="searchTerm">Search in name and address</param>
-    /// <param name="minRank">Minimum rank filter</param>
-    /// <param name="maxRank">Maximum rank filter</param>
-    /// <param name="needsVisit">Filter outlets needing visits</param>
-    /// <param name="maxDaysSinceVisit">Maximum days since visit for filtering outlets that need visits</param>
-    /// <param name="highPerforming">Filter high-performing outlets</param>
-    /// <param name="minAchievementPercentage">Minimum achievement percentage for high-performing outlets</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
-    /// <param name="sortBy">Sort field</param>
-    /// <param name="sortDirection">Sort direction (asc/desc)</param>
-    /// <returns>Paged list of outlets</returns>
+    /// <returns>A paginated list of outlets</returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<OutletDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<PagedResult<OutletDto>>> GetOutlets(
-        [FromQuery] string? tier = null,
-        [FromQuery] ChainType? chainType = null,
-        [FromQuery] bool? isActive = null,
-        [FromQuery] string? city = null,
-        [FromQuery] string? state = null,
-        [FromQuery] string? searchTerm = null,
-        [FromQuery] int? minRank = null,
-        [FromQuery] int? maxRank = null,
-        [FromQuery] bool? needsVisit = null,
-        [FromQuery] int maxDaysSinceVisit = 30,
-        [FromQuery] bool? highPerforming = null,
-        [FromQuery] decimal minAchievementPercentage = 100,
         [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10,
-        [FromQuery] string sortBy = "CreatedAt",
-        [FromQuery] string sortDirection = "desc")
+        [FromQuery] int pageSize = 10)
     {
-        var query = new GetOutletsQuery
+        try
         {
-            Tier = tier,
-            ChainType = chainType,
-            IsActive = isActive,
-            City = city,
-            State = state,
-            SearchTerm = searchTerm,
-            MinRank = minRank,
-            MaxRank = maxRank,
-            NeedsVisit = needsVisit,
-            MaxDaysSinceVisit = maxDaysSinceVisit,
-            HighPerforming = highPerforming,
-            MinAchievementPercentage = minAchievementPercentage,
-            PageNumber = pageNumber,
-            PageSize = pageSize,
-            SortBy = sortBy,
-            SortDirection = sortDirection
-        };
+            _logger.LogInformation("Getting outlets - Page: {PageNumber}, PageSize: {PageSize}", 
+                pageNumber, pageSize);
 
-        var result = await _mediator.Send(query);
+            // Validate pagination parameters
+            if (pageNumber < 1)
+            {
+                return BadRequest("Page number must be greater than 0");
+            }
 
-        if (result.IsFailure)
-        {
-            return BadRequest(result.Error);
+            if (pageSize < 1 || pageSize > 100)
+            {
+                return BadRequest("Page size must be between 1 and 100");
+            }
+
+            var query = new GetOutletsQuery
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+
+            var result = await _mediator.Send(query);
+
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("Failed to get outlets: {Error}", result.Error);
+                return BadRequest(result.Error);
+            }
+
+            return Ok(result.Value);
         }
-
-        return Ok(result.Value);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while getting outlets");
+            return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving outlets");
+        }
     }
 
     /// <summary>
     /// Gets an outlet by ID
     /// </summary>
     /// <param name="id">The outlet ID</param>
-    /// <returns>The outlet details</returns>
+    /// <returns>The outlet if found</returns>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(OutletDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<OutletDto>> GetOutlet(Guid id)
     {
-        var query = new GetOutletByIdQuery { Id = id };
-        var result = await _mediator.Send(query);
-
-        if (result.IsFailure)
+        try
         {
-            return NotFound(result.Error);
-        }
+            _logger.LogInformation("Getting outlet by ID: {OutletId}", id);
 
-        return Ok(result.Value);
+            var query = new GetOutletByIdQuery { Id = id };
+            var result = await _mediator.Send(query);
+
+            if (!result.IsSuccess)
+            {
+                if (result.Error?.Contains("not found") == true)
+                {
+                    _logger.LogWarning("Outlet not found: {OutletId}", id);
+                    return NotFound($"Outlet with ID {id} not found");
+                }
+
+                _logger.LogWarning("Failed to get outlet {OutletId}: {Error}", id, result.Error);
+                return BadRequest(result.Error);
+            }
+
+            return Ok(result.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while getting outlet {OutletId}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving the outlet");
+        }
     }
 
     /// <summary>
     /// Creates a new outlet
     /// </summary>
-    /// <param name="createOutletDto">The outlet creation data</param>
+    /// <param name="command">The outlet creation data</param>
     /// <returns>The created outlet</returns>
     [HttpPost]
     [ProducesResponseType(typeof(OutletDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<OutletDto>> CreateOutlet([FromBody] CreateOutletDto createOutletDto)
+    public async Task<ActionResult<OutletDto>> CreateOutlet([FromBody] CreateOutletCommand command)
     {
-        var userId = GetCurrentUserId();
-        var command = _mapper.Map<CreateOutletCommand>(createOutletDto);
-        command = command with { UserId = userId };
-
-        var result = await _mediator.Send(command);
-
-        if (result.IsFailure)
+        try
         {
-            if (result.Error?.Contains("already exists") == true)
-            {
-                return Conflict(result.Error);
-            }
-            return BadRequest(result.Error);
-        }
+            _logger.LogInformation("Creating new outlet: {OutletName}", command.Name);
 
-        return CreatedAtAction(nameof(GetOutlet), new { id = result.Value!.Id }, result.Value);
+            // Create a new command with the user ID set
+            var commandWithUserId = command with { UserId = GetCurrentUserId() };
+
+            var result = await _mediator.Send(commandWithUserId);
+
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("Failed to create outlet: {Error}", result.Error);
+                return BadRequest(result.Error);
+            }
+
+            _logger.LogInformation("Successfully created outlet with ID: {OutletId}", result.Value?.Id);
+            return CreatedAtAction(nameof(GetOutlet), new { id = result.Value?.Id }, result.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while creating outlet");
+            return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the outlet");
+        }
     }
 
     /// <summary>
     /// Updates an existing outlet
     /// </summary>
     /// <param name="id">The outlet ID</param>
-    /// <param name="updateOutletDto">The outlet update data</param>
+    /// <param name="command">The outlet update data</param>
     /// <returns>The updated outlet</returns>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(OutletDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<OutletDto>> UpdateOutlet(Guid id, [FromBody] UpdateOutletDto updateOutletDto)
+    public async Task<ActionResult<OutletDto>> UpdateOutlet(Guid id, [FromBody] UpdateOutletCommand command)
     {
-        var userId = GetCurrentUserId();
-        var command = new UpdateOutletCommand
+        try
         {
-            Id = id,
-            Name = updateOutletDto.Name,
-            Tier = updateOutletDto.Tier,
-            Rank = updateOutletDto.Rank,
-            ChainType = updateOutletDto.ChainType,
-            Sales = updateOutletDto.Sales,
-            Currency = updateOutletDto.Currency,
-            VolumeSoldKg = updateOutletDto.VolumeSoldKg,
-            VolumeTargetKg = updateOutletDto.VolumeTargetKg,
-            Address = updateOutletDto.Address,
-            LastVisitDate = updateOutletDto.LastVisitDate,
-            UserId = userId
-        };
-
-        var result = await _mediator.Send(command);
-
-        if (result.IsFailure)
-        {
-            if (result.Error?.Contains("not found") == true)
+            if (id != command.Id)
             {
-                return NotFound(result.Error);
+                return BadRequest("URL ID does not match the command ID");
             }
-            return BadRequest(result.Error);
-        }
 
-        return Ok(result.Value);
+            _logger.LogInformation("Updating outlet: {OutletId}", id);
+
+            // Set the user ID from the current user's claims
+            command.UserId = GetCurrentUserId();
+
+            var result = await _mediator.Send(command);
+
+            if (!result.IsSuccess)
+            {
+                if (result.Error?.Contains("not found") == true)
+                {
+                    _logger.LogWarning("Outlet not found for update: {OutletId}", id);
+                    return NotFound($"Outlet with ID {id} not found");
+                }
+
+                _logger.LogWarning("Failed to update outlet {OutletId}: {Error}", id, result.Error);
+                return BadRequest(result.Error);
+            }
+
+            _logger.LogInformation("Successfully updated outlet: {OutletId}", id);
+            return Ok(result.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while updating outlet {OutletId}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the outlet");
+        }
     }
 
     /// <summary>
@@ -218,177 +224,95 @@ public class OutletsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteOutlet(Guid id)
     {
-        var userId = GetCurrentUserId();
-        var command = new DeleteOutletCommand { Id = id, UserId = userId };
-        var result = await _mediator.Send(command);
-
-        if (result.IsFailure)
+        try
         {
-            if (result.Error?.Contains("not found") == true)
-            {
-                return NotFound(result.Error);
-            }
-            return BadRequest(result.Error);
-        }
+            _logger.LogInformation("Deleting outlet: {OutletId}", id);
 
-        return NoContent();
+            var command = new DeleteOutletCommand 
+            { 
+                Id = id,
+                UserId = GetCurrentUserId()
+            };
+
+            var result = await _mediator.Send(command);
+
+            if (!result.IsSuccess)
+            {
+                if (result.Error?.Contains("not found") == true)
+                {
+                    _logger.LogWarning("Outlet not found for deletion: {OutletId}", id);
+                    return NotFound($"Outlet with ID {id} not found");
+                }
+
+                _logger.LogWarning("Failed to delete outlet {OutletId}: {Error}", id, result.Error);
+                return BadRequest(result.Error);
+            }
+
+            _logger.LogInformation("Successfully deleted outlet: {OutletId}", id);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while deleting outlet {OutletId}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the outlet");
+        }
     }
 
     /// <summary>
     /// Records a visit to an outlet
     /// </summary>
     /// <param name="id">The outlet ID</param>
-    /// <param name="visitDate">The visit date (optional, defaults to current date)</param>
-    /// <returns>The updated outlet</returns>
+    /// <param name="command">The visit recording data</param>
+    /// <returns>No content if successful</returns>
     [HttpPost("{id:guid}/visit")]
-    [ProducesResponseType(typeof(OutletDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<OutletDto>> RecordVisit(Guid id, [FromBody] DateTime? visitDate = null)
+    public async Task<IActionResult> RecordVisit(Guid id, [FromBody] RecordVisitCommand command)
     {
-        var userId = GetCurrentUserId();
-        var command = new RecordVisitCommand
+        try
         {
-            Id = id,
-            VisitDate = visitDate ?? DateTime.UtcNow,
-            UserId = userId
-        };
-
-        var result = await _mediator.Send(command);
-
-        if (result.IsFailure)
-        {
-            if (result.Error?.Contains("not found") == true)
+            if (id != command.Id)
             {
-                return NotFound(result.Error);
+                return BadRequest("URL ID does not match the command ID");
             }
-            return BadRequest(result.Error);
-        }
 
-        return Ok(result.Value);
+            _logger.LogInformation("Recording visit for outlet: {OutletId}", id);
+
+            // Set the user ID from the current user's claims
+            command.UserId = GetCurrentUserId();
+
+            var result = await _mediator.Send(command);
+
+            if (!result.IsSuccess)
+            {
+                if (result.Error?.Contains("not found") == true)
+                {
+                    _logger.LogWarning("Outlet not found for visit recording: {OutletId}", id);
+                    return NotFound($"Outlet with ID {id} not found");
+                }
+
+                _logger.LogWarning("Failed to record visit for outlet {OutletId}: {Error}", id, result.Error);
+                return BadRequest(result.Error);
+            }
+
+            _logger.LogInformation("Successfully recorded visit for outlet: {OutletId}", id);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while recording visit for outlet {OutletId}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while recording the visit");
+        }
     }
 
     /// <summary>
-    /// Gets all outlet tiers
+    /// Gets the current user ID from claims
     /// </summary>
-    /// <returns>List of tiers</returns>
-    [HttpGet("tiers")]
-    [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<IEnumerable<string>>> GetTiers()
-    {
-        var query = new GetTiersQuery();
-        var result = await _mediator.Send(query);
-
-        if (result.IsFailure)
-        {
-            return BadRequest(result.Error);
-        }
-
-        return Ok(result.Value);
-    }
-
-    /// <summary>
-    /// Gets all outlet cities
-    /// </summary>
-    /// <returns>List of cities</returns>
-    [HttpGet("cities")]
-    [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<IEnumerable<string>>> GetCities()
-    {
-        var query = new GetCitiesQuery();
-        var result = await _mediator.Send(query);
-
-        if (result.IsFailure)
-        {
-            return BadRequest(result.Error);
-        }
-
-        return Ok(result.Value);
-    }
-
-    /// <summary>
-    /// Gets outlets that need visits
-    /// </summary>
-    /// <param name="maxDaysSinceVisit">Maximum days since last visit (default: 30)</param>
-    /// <param name="pageNumber">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 10)</param>
-    /// <returns>Paged list of outlets needing visits</returns>
-    [HttpGet("needing-visit")]
-    [ProducesResponseType(typeof(PagedResult<OutletDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<PagedResult<OutletDto>>> GetOutletsNeedingVisit(
-        [FromQuery] int maxDaysSinceVisit = 30,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10)
-    {
-        var query = new GetOutletsQuery
-        {
-            NeedsVisit = true,
-            MaxDaysSinceVisit = maxDaysSinceVisit,
-            PageNumber = pageNumber,
-            PageSize = pageSize,
-            SortBy = "LastVisitDate",
-            SortDirection = "asc"
-        };
-
-        var result = await _mediator.Send(query);
-
-        if (result.IsFailure)
-        {
-            return BadRequest(result.Error);
-        }
-
-        return Ok(result.Value);
-    }
-
-    /// <summary>
-    /// Gets high-performing outlets
-    /// </summary>
-    /// <param name="minAchievementPercentage">Minimum achievement percentage (default: 100)</param>
-    /// <param name="pageNumber">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 10)</param>
-    /// <returns>Paged list of high-performing outlets</returns>
-    [HttpGet("high-performing")]
-    [ProducesResponseType(typeof(PagedResult<OutletDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<PagedResult<OutletDto>>> GetHighPerformingOutlets(
-        [FromQuery] decimal minAchievementPercentage = 100,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10)
-    {
-        var query = new GetOutletsQuery
-        {
-            HighPerforming = true,
-            MinAchievementPercentage = minAchievementPercentage,
-            PageNumber = pageNumber,
-            PageSize = pageSize,
-            SortBy = "TargetAchievement",
-            SortDirection = "desc"
-        };
-
-        var result = await _mediator.Send(query);
-
-        if (result.IsFailure)
-        {
-            return BadRequest(result.Error);
-        }
-
-        return Ok(result.Value);
-    }
-
+    /// <returns>The current user ID</returns>
     private string GetCurrentUserId()
     {
         return User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? 
@@ -398,7 +322,7 @@ public class OutletsController : ControllerBase
     }
 }
 
-// Additional command and query classes needed for the controller
+// Command classes for the controller
 public record GetOutletByIdQuery : IRequest<Result<OutletDto>>
 {
     public Guid Id { get; init; }
@@ -412,27 +336,122 @@ public record UpdateOutletCommand : IRequest<Result<OutletDto>>
     public int Rank { get; init; }
     public ChainType ChainType { get; init; }
     public decimal Sales { get; init; }
-    public string Currency { get; init; } = "USD";
+    public string Currency { get; init; } = string.Empty;
     public decimal VolumeSoldKg { get; init; }
     public decimal VolumeTargetKg { get; init; }
-    public AddressDto Address { get; init; } = new();
+    public AddressDto Address { get; init; } = null!;
     public DateTime? LastVisitDate { get; init; }
-    public string UserId { get; init; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
 }
 
 public record DeleteOutletCommand : IRequest<Result>
 {
     public Guid Id { get; init; }
-    public string UserId { get; init; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
 }
 
-public record RecordVisitCommand : IRequest<Result<OutletDto>>
+public record RecordVisitCommand : IRequest<Result>
 {
     public Guid Id { get; init; }
     public DateTime VisitDate { get; init; }
-    public string UserId { get; init; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
 }
 
-public record GetTiersQuery : IRequest<Result<IEnumerable<string>>>;
+// Simple handlers for the controller commands
+public class GetOutletByIdQueryHandler : IRequestHandler<GetOutletByIdQuery, Result<OutletDto>>
+{
+    private readonly IOutletRepository _repository;
+    private readonly IMapper _mapper;
 
-public record GetCitiesQuery : IRequest<Result<IEnumerable<string>>>;
+    public GetOutletByIdQueryHandler(IOutletRepository repository, IMapper mapper)
+    {
+        _repository = repository;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<OutletDto>> Handle(GetOutletByIdQuery request, CancellationToken cancellationToken)
+    {
+        var outlet = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        if (outlet == null)
+        {
+            return Result<OutletDto>.Failure("Outlet not found");
+        }
+
+        var dto = _mapper.Map<OutletDto>(outlet);
+        return Result<OutletDto>.Success(dto);
+    }
+}
+
+public class UpdateOutletCommandHandler : IRequestHandler<UpdateOutletCommand, Result<OutletDto>>
+{
+    private readonly IOutletRepository _repository;
+    private readonly IMapper _mapper;
+
+    public UpdateOutletCommandHandler(IOutletRepository repository, IMapper mapper)
+    {
+        _repository = repository;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<OutletDto>> Handle(UpdateOutletCommand request, CancellationToken cancellationToken)
+    {
+        var outlet = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        if (outlet == null)
+        {
+            return Result<OutletDto>.Failure("Outlet not found");
+        }
+
+        // Update outlet properties using available methods
+        outlet.UpdateSales(new ImperialBackend.Domain.ValueObjects.Money(request.Sales, request.Currency), request.UserId);
+        outlet.UpdateVolumeSold(request.VolumeSoldKg, request.UserId);
+        outlet.UpdateVolumeTarget(request.VolumeTargetKg, request.UserId);
+        
+        if (request.LastVisitDate.HasValue)
+        {
+            outlet.RecordVisit(request.LastVisitDate.Value, request.UserId);
+        }
+
+        var updatedOutlet = await _repository.UpdateAsync(outlet, cancellationToken);
+        var dto = _mapper.Map<OutletDto>(updatedOutlet);
+        return Result<OutletDto>.Success(dto);
+    }
+}
+
+public class DeleteOutletCommandHandler : IRequestHandler<DeleteOutletCommand, Result>
+{
+    private readonly IOutletRepository _repository;
+
+    public DeleteOutletCommandHandler(IOutletRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Result> Handle(DeleteOutletCommand request, CancellationToken cancellationToken)
+    {
+        var success = await _repository.DeleteAsync(request.Id, cancellationToken);
+        return success ? Result.Success() : Result.Failure("Outlet not found");
+    }
+}
+
+public class RecordVisitCommandHandler : IRequestHandler<RecordVisitCommand, Result>
+{
+    private readonly IOutletRepository _repository;
+
+    public RecordVisitCommandHandler(IOutletRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Result> Handle(RecordVisitCommand request, CancellationToken cancellationToken)
+    {
+        var outlet = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        if (outlet == null)
+        {
+            return Result.Failure("Outlet not found");
+        }
+
+        outlet.RecordVisit(request.VisitDate, request.UserId);
+        await _repository.UpdateAsync(outlet, cancellationToken);
+        return Result.Success();
+    }
+}

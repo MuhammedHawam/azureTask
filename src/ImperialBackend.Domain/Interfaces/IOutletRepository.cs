@@ -4,7 +4,7 @@ using ImperialBackend.Domain.Enums;
 namespace ImperialBackend.Domain.Interfaces;
 
 /// <summary>
-/// Repository interface for Outlet entity operations
+/// Repository interface for Outlet entity operations with optimized queries
 /// </summary>
 public interface IOutletRepository
 {
@@ -17,6 +17,25 @@ public interface IOutletRepository
     Task<Outlet?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets all outlets with pagination
+    /// </summary>
+    /// <param name="pageNumber">Page number (1-based)</param>
+    /// <param name="pageSize">Page size</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A collection of outlets</returns>
+    Task<IEnumerable<Outlet>> GetAllAsync(
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the total count of outlets
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The total count of outlets</returns>
+    Task<int> GetCountAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets outlets by name (partial match)
     /// </summary>
     /// <param name="name">The outlet name to search for</param>
@@ -25,47 +44,30 @@ public interface IOutletRepository
     Task<IEnumerable<Outlet>> GetByNameAsync(string name, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets all outlets with optional filtering and pagination
+    /// Gets outlets by tier
     /// </summary>
-    /// <param name="tier">Optional tier filter</param>
-    /// <param name="chainType">Optional chain type filter</param>
-    /// <param name="isActive">Optional active status filter</param>
-    /// <param name="city">Optional city filter</param>
-    /// <param name="state">Optional state filter</param>
-    /// <param name="pageNumber">Page number (1-based)</param>
-    /// <param name="pageSize">Page size</param>
+    /// <param name="tier">The tier to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>A collection of outlets</returns>
-    Task<IEnumerable<Outlet>> GetAllAsync(
-        string? tier = null,
-        ChainType? chainType = null,
-        bool? isActive = null,
-        string? city = null,
-        string? state = null,
-        int pageNumber = 1,
-        int pageSize = 10,
-        CancellationToken cancellationToken = default);
+    /// <returns>A collection of outlets in the specified tier</returns>
+    Task<IEnumerable<Outlet>> GetByTierAsync(string tier, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the total count of outlets with optional filtering
+    /// Gets outlets by chain type
     /// </summary>
-    /// <param name="tier">Optional tier filter</param>
-    /// <param name="chainType">Optional chain type filter</param>
-    /// <param name="isActive">Optional active status filter</param>
-    /// <param name="city">Optional city filter</param>
-    /// <param name="state">Optional state filter</param>
+    /// <param name="chainType">The chain type to filter by</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>The total count of outlets</returns>
-    Task<int> GetCountAsync(
-        string? tier = null,
-        ChainType? chainType = null,
-        bool? isActive = null,
-        string? city = null,
-        string? state = null,
-        CancellationToken cancellationToken = default);
+    /// <returns>A collection of outlets with the specified chain type</returns>
+    Task<IEnumerable<Outlet>> GetByChainTypeAsync(ChainType chainType, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Searches outlets by name or address
+    /// Gets all active outlets
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A collection of active outlets</returns>
+    Task<IEnumerable<Outlet>> GetActiveOutletsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches outlets by name or address with pagination
     /// </summary>
     /// <param name="searchTerm">The search term</param>
     /// <param name="pageNumber">Page number (1-based)</param>
@@ -79,24 +81,10 @@ public interface IOutletRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets outlets that need visits (haven't been visited for more than specified days)
+    /// Gets outlets within a rank range with pagination
     /// </summary>
-    /// <param name="maxDaysSinceVisit">Maximum days since last visit</param>
-    /// <param name="pageNumber">Page number (1-based)</param>
-    /// <param name="pageSize">Page size</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>A collection of outlets that need visits</returns>
-    Task<IEnumerable<Outlet>> GetOutletsNeedingVisitAsync(
-        int maxDaysSinceVisit = 30,
-        int pageNumber = 1,
-        int pageSize = 10,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets outlets by rank range
-    /// </summary>
-    /// <param name="minRank">Minimum rank (inclusive)</param>
-    /// <param name="maxRank">Maximum rank (inclusive)</param>
+    /// <param name="minRank">Minimum rank</param>
+    /// <param name="maxRank">Maximum rank</param>
     /// <param name="pageNumber">Page number (1-based)</param>
     /// <param name="pageSize">Page size</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -109,21 +97,21 @@ public interface IOutletRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets all distinct tiers
+    /// Gets outlets that need a visit with pagination
     /// </summary>
+    /// <param name="maxDaysSinceVisit">Maximum days since last visit</param>
+    /// <param name="pageNumber">Page number (1-based)</param>
+    /// <param name="pageSize">Page size</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>A collection of tiers</returns>
-    Task<IEnumerable<string>> GetTiersAsync(CancellationToken cancellationToken = default);
+    /// <returns>A collection of outlets needing visits</returns>
+    Task<IEnumerable<Outlet>> GetOutletsNeedingVisitAsync(
+        int maxDaysSinceVisit = 30,
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets all distinct cities
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>A collection of cities</returns>
-    Task<IEnumerable<string>> GetCitiesAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets outlets with target achievement above specified percentage
+    /// Gets high-performing outlets with pagination
     /// </summary>
     /// <param name="minAchievementPercentage">Minimum achievement percentage</param>
     /// <param name="pageNumber">Page number (1-based)</param>
@@ -131,7 +119,7 @@ public interface IOutletRepository
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>A collection of high-performing outlets</returns>
     Task<IEnumerable<Outlet>> GetHighPerformingOutletsAsync(
-        decimal minAchievementPercentage = 100,
+        decimal minAchievementPercentage = 80.0m,
         int pageNumber = 1,
         int pageSize = 10,
         CancellationToken cancellationToken = default);
@@ -161,18 +149,24 @@ public interface IOutletRepository
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks if an outlet exists with the given name and address
+    /// Checks if an outlet exists
     /// </summary>
-    /// <param name="name">The outlet name</param>
-    /// <param name="city">The city</param>
-    /// <param name="state">The state</param>
-    /// <param name="excludeId">Optional outlet ID to exclude from the check</param>
+    /// <param name="id">The outlet identifier</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if an outlet exists, false otherwise</returns>
-    Task<bool> ExistsWithNameAndLocationAsync(
-        string name, 
-        string city, 
-        string state, 
-        Guid? excludeId = null, 
-        CancellationToken cancellationToken = default);
+    /// <returns>True if the outlet exists, false otherwise</returns>
+    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all distinct tiers
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A collection of distinct tiers</returns>
+    Task<IEnumerable<string>> GetDistinctTiersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all distinct cities
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A collection of distinct cities</returns>
+    Task<IEnumerable<string>> GetDistinctCitiesAsync(CancellationToken cancellationToken = default);
 }

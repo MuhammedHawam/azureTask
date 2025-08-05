@@ -18,9 +18,9 @@ public class ApplicationDbContext : DbContext
     }
 
     /// <summary>
-    /// Gets or sets the Products DbSet
+    /// Gets or sets the Outlets DbSet
     /// </summary>
-    public DbSet<Product> Products { get; set; } = null!;
+    public DbSet<Outlet> Outlets { get; set; } = null!
 
     /// <summary>
     /// Configures the model that was discovered by convention from the entity types
@@ -34,7 +34,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
         // Configure specific entities
-        modelBuilder.ApplyConfiguration(new ProductConfiguration());
+        modelBuilder.ApplyConfiguration(new OutletConfiguration());
     }
 
     /// <summary>

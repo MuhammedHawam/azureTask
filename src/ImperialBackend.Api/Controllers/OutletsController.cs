@@ -13,7 +13,7 @@ using System.Security.Claims;
 namespace ImperialBackend.Api.Controllers;
 
 /// <summary>
-/// Controller for managing outlets
+/// Controller for managing outlets with comprehensive filtering and sorting
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -25,37 +25,70 @@ public class OutletsController : ControllerBase
     private readonly IMapper _mapper;
     private readonly ILogger<OutletsController> _logger;
 
+    // Add repository dependency for tiers and cities endpoints
+    private readonly IOutletRepository _outletRepository;
+
     /// <summary>
     /// Initializes a new instance of the OutletsController class
     /// </summary>
     /// <param name="mediator">The MediatR instance</param>
     /// <param name="mapper">The AutoMapper instance</param>
     /// <param name="logger">The logger</param>
-    public OutletsController(IMediator mediator, IMapper mapper, ILogger<OutletsController> logger)
+    /// <param name="outletRepository">The outlet repository</param>
+    public OutletsController(IMediator mediator, IMapper mapper, ILogger<OutletsController> logger, IOutletRepository outletRepository)
     {
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _outletRepository = outletRepository ?? throw new ArgumentNullException(nameof(outletRepository));
     }
 
     /// <summary>
-    /// Gets outlets with pagination
+    /// Gets outlets with comprehensive filtering, sorting, and pagination
     /// </summary>
+    /// <param name="tier">Filter by tier</param>
+    /// <param name="chainType">Filter by chain type (1=Regional, 2=National)</param>
+    /// <param name="isActive">Filter by active status</param>
+    /// <param name="city">Filter by city</param>
+    /// <param name="state">Filter by state</param>
+    /// <param name="searchTerm">Search in name and address</param>
+    /// <param name="minRank">Minimum rank filter</param>
+    /// <param name="maxRank">Maximum rank filter</param>
+    /// <param name="needsVisit">Filter outlets needing visits</param>
+    /// <param name="maxDaysSinceVisit">Maximum days since visit for filtering outlets that need visits</param>
+    /// <param name="highPerforming">Filter high-performing outlets</param>
+    /// <param name="minAchievementPercentage">Minimum achievement percentage for high-performing outlets</param>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10, max: 100)</param>
+    /// <param name="sortBy">Sort field</param>
+    /// <param name="sortDirection">Sort direction (asc/desc)</param>
     /// <returns>A paginated list of outlets</returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<OutletDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<PagedResult<OutletDto>>> GetOutlets(
+        [FromQuery] string? tier = null,
+        [FromQuery] ChainType? chainType = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] string? city = null,
+        [FromQuery] string? state = null,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] int? minRank = null,
+        [FromQuery] int? maxRank = null,
+        [FromQuery] bool? needsVisit = null,
+        [FromQuery] int maxDaysSinceVisit = 30,
+        [FromQuery] bool? highPerforming = null,
+        [FromQuery] decimal minAchievementPercentage = 80.0m,
         [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string sortBy = "CreatedAt",
+        [FromQuery] string sortDirection = "desc")
     {
         try
         {
-            _logger.LogInformation("Getting outlets - Page: {PageNumber}, PageSize: {PageSize}", 
-                pageNumber, pageSize);
+            _logger.LogInformation("Getting outlets with filters - Page: {PageNumber}, PageSize: {PageSize}, SortBy: {SortBy}", 
+                pageNumber, pageSize, sortBy);
 
             // Validate pagination parameters
             if (pageNumber < 1)
@@ -70,8 +103,22 @@ public class OutletsController : ControllerBase
 
             var query = new GetOutletsQuery
             {
+                Tier = tier,
+                ChainType = chainType,
+                IsActive = isActive,
+                City = city,
+                State = state,
+                SearchTerm = searchTerm,
+                MinRank = minRank,
+                MaxRank = maxRank,
+                NeedsVisit = needsVisit,
+                MaxDaysSinceVisit = maxDaysSinceVisit,
+                HighPerforming = highPerforming,
+                MinAchievementPercentage = minAchievementPercentage,
                 PageNumber = pageNumber,
-                PageSize = pageSize
+                PageSize = pageSize,
+                SortBy = sortBy,
+                SortDirection = sortDirection
             };
 
             var result = await _mediator.Send(query);
@@ -128,6 +175,104 @@ public class OutletsController : ControllerBase
             _logger.LogError(ex, "Error occurred while getting outlet {OutletId}", id);
             return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving the outlet");
         }
+    }
+
+    /// <summary>
+    /// Gets outlets that need visits
+    /// </summary>
+    /// <param name="maxDaysSinceVisit">Maximum days since last visit (default: 30)</param>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10)</param>
+    /// <returns>Paged list of outlets needing visits</returns>
+    [HttpGet("needing-visit")]
+    [ProducesResponseType(typeof(PagedResult<OutletDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<PagedResult<OutletDto>>> GetOutletsNeedingVisit(
+        [FromQuery] int maxDaysSinceVisit = 30,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var query = new GetOutletsQuery
+        {
+            NeedsVisit = true,
+            MaxDaysSinceVisit = maxDaysSinceVisit,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            SortBy = "LastVisitDate",
+            SortDirection = "asc"
+        };
+
+        var result = await _mediator.Send(query);
+
+        if (!result.IsSuccess)
+        {
+            return BadRequest(result.Error);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Gets high-performing outlets
+    /// </summary>
+    /// <param name="minAchievementPercentage">Minimum achievement percentage (default: 80)</param>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10)</param>
+    /// <returns>Paged list of high-performing outlets</returns>
+    [HttpGet("high-performing")]
+    [ProducesResponseType(typeof(PagedResult<OutletDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<PagedResult<OutletDto>>> GetHighPerformingOutlets(
+        [FromQuery] decimal minAchievementPercentage = 80.0m,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var query = new GetOutletsQuery
+        {
+            HighPerforming = true,
+            MinAchievementPercentage = minAchievementPercentage,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            SortBy = "TargetAchievement",
+            SortDirection = "desc"
+        };
+
+        var result = await _mediator.Send(query);
+
+        if (!result.IsSuccess)
+        {
+            return BadRequest(result.Error);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Gets all outlet tiers
+    /// </summary>
+    /// <returns>List of tiers</returns>
+    [HttpGet("tiers")]
+    [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IEnumerable<string>>> GetTiers()
+    {
+        var tiers = await _outletRepository.GetDistinctTiersAsync();
+        return Ok(tiers);
+    }
+
+    /// <summary>
+    /// Gets all outlet cities
+    /// </summary>
+    /// <returns>List of cities</returns>
+    [HttpGet("cities")]
+    [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IEnumerable<string>>> GetCities()
+    {
+        var cities = await _outletRepository.GetDistinctCitiesAsync();
+        return Ok(cities);
     }
 
     /// <summary>
@@ -320,6 +465,8 @@ public class OutletsController : ControllerBase
                User.FindFirst("oid")?.Value ?? 
                "system";
     }
+
+
 }
 
 // Command classes for the controller

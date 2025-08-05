@@ -29,7 +29,7 @@ public class OutletsControllerTests
         _mockMapper = new Mock<IMapper>();
         _mockLogger = new Mock<ILogger<OutletsController>>();
         
-        _controller = new OutletsController(_mockMediator.Object, _mockMapper.Object, _mockLogger.Object);
+        _controller = new OutletsController(_mockMediator.Object, _mockMapper.Object, _mockLogger.Object, _mockRepository.Object);
         
         // Setup user context
         var claims = new List<Claim>

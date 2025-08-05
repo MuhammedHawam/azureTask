@@ -2,6 +2,7 @@ using ImperialBackend.Application.Common.Models;
 using ImperialBackend.Application.DTOs;
 using ImperialBackend.Domain.Enums;
 using MediatR;
+using System.ComponentModel;
 
 namespace ImperialBackend.Application.Outlets.Queries.GetOutlets;
 
@@ -58,6 +59,7 @@ public record GetOutletsQuery : IRequest<Result<PagedResult<OutletDto>>>
     /// <summary>
     /// Gets the maximum days since visit for filtering outlets that need visits
     /// </summary>
+    [DefaultValue(30)]
     public int MaxDaysSinceVisit { get; init; } = 30;
 
     /// <summary>
@@ -68,25 +70,30 @@ public record GetOutletsQuery : IRequest<Result<PagedResult<OutletDto>>>
     /// <summary>
     /// Gets the minimum achievement percentage for high-performing outlets
     /// </summary>
+    [DefaultValue(80.0)]
     public decimal MinAchievementPercentage { get; init; } = 80.0m;
 
     /// <summary>
     /// Gets the page number (1-based)
     /// </summary>
+    [DefaultValue(1)]
     public int PageNumber { get; init; } = 1;
 
     /// <summary>
     /// Gets the page size
     /// </summary>
+    [DefaultValue(10)]
     public int PageSize { get; init; } = 10;
 
     /// <summary>
     /// Gets the sort field
     /// </summary>
+    [DefaultValue("CreatedAt")]
     public string SortBy { get; init; } = "CreatedAt";
 
     /// <summary>
     /// Gets the sort direction (asc/desc)
     /// </summary>
+    [DefaultValue("desc")]
     public string SortDirection { get; init; } = "desc";
 }

@@ -1,109 +1,77 @@
-# Azure Outlet Management API
+# Imperial Backend API
 
-A comprehensive ASP.NET Core Web API solution for managing retail outlets with Azure AD authentication, built using Clean Architecture, CQRS with MediatR, and modern development practices.
+A comprehensive .NET 8 Web API for managing retail outlets with Azure AD authentication, built using Clean Architecture principles.
 
 ## 🏗️ Architecture
 
-This solution follows **Clean Architecture** principles with the following layers:
-
-- **Domain Layer**: Contains business entities, value objects, enums, and interfaces
-- **Application Layer**: Contains business logic, CQRS commands/queries, DTOs, and validators
-- **Infrastructure Layer**: Contains data access, external service integrations, and cross-cutting concerns
-- **API Layer**: Contains controllers, middleware, and API configuration
-
-## 🚀 Features
-
-### Core Features
-- ✅ **Clean Architecture** with SOLID principles
-- ✅ **CQRS Pattern** with MediatR
-- ✅ **Domain-Driven Design** (DDD) with rich domain models
-- ✅ **FluentValidation** for request validation
-- ✅ **AutoMapper** for object mapping
-- ✅ **Entity Framework Core** with SQL Server
-- ✅ **Azure AD Authentication** and Authorization
-- ✅ **Comprehensive Logging** middleware
-- ✅ **Result Pattern** for error handling
-- ✅ **Pagination** support
-- ✅ **Unit Testing** with xUnit and Moq
-- ✅ **Swagger/OpenAPI** documentation
-
-### Business Features
-- 🏪 **Outlet Management**: Create, read, update, delete outlets
-- 📊 **Performance Tracking**: Sales, volume sold/target tracking
-- 📍 **Location Management**: Address-based outlet organization
-- 🏆 **Ranking System**: Tier and rank-based outlet classification
-- 🔗 **Chain Classification**: Regional vs National chain support
-- 📅 **Visit Tracking**: Last visit date and visit scheduling
-- 🎯 **Target Achievement**: Performance metrics and reporting
-
-## 🏢 Outlet Properties
-
-Each outlet contains the following information:
-
-- **Name**: Outlet name (required, max 200 chars)
-- **Tier**: Business tier classification (required, max 50 chars)
-- **Rank**: Numeric ranking (required, > 0)
-- **Chain Type**: Regional or National (enum)
-- **Last Visit Date**: When the outlet was last visited (optional)
-- **Sales**: Sales amount with currency (Money value object)
-- **Volume Sold (kg)**: Actual volume sold in kilograms
-- **Volume Target (kg)**: Target volume in kilograms
-- **Address**: Complete address (Street, City, State, Postal Code, Country)
-- **Active Status**: Whether the outlet is currently active
-
-## 📁 Project Structure
+This project follows Clean Architecture with the following layers:
 
 ```
-AzureProductApi/
+ImperialBackend/
 ├── src/
-│   ├── AzureProductApi.Domain/           # Domain layer
-│   │   ├── Common/                       # Base entities and shared code
-│   │   ├── Entities/                     # Domain entities (Outlet)
-│   │   ├── ValueObjects/                 # Value objects (Money, Address)
-│   │   ├── Enums/                        # Domain enums (ChainType)
+│   ├── ImperialBackend.Domain/           # Domain layer
+│   │   ├── Entities/                     # Business entities
+│   │   ├── ValueObjects/                 # Value objects
+│   │   ├── Enums/                        # Domain enums
 │   │   └── Interfaces/                   # Repository interfaces
-│   ├── AzureProductApi.Application/      # Application layer
-│   │   ├── Common/                       # Shared application code
-│   │   ├── DTOs/                         # Data transfer objects
-│   │   ├── Outlets/                      # Outlet-specific features
-│   │   │   ├── Commands/                 # CQRS commands
-│   │   │   └── Queries/                  # CQRS queries
-│   │   └── Mappings/                     # AutoMapper profiles
-│   ├── AzureProductApi.Infrastructure/   # Infrastructure layer
-│   │   ├── Data/                         # EF Core DbContext and configurations
+│   ├── ImperialBackend.Application/      # Application layer
+│   │   ├── Common/                       # Shared application logic
+│   │   ├── DTOs/                         # Data Transfer Objects
+│   │   └── Outlets/                      # Outlet-specific features
+│   ├── ImperialBackend.Infrastructure/   # Infrastructure layer
+│   │   ├── Data/                         # Entity Framework DbContext
 │   │   └── Repositories/                 # Repository implementations
-│   └── AzureProductApi.Api/              # API layer
+│   └── ImperialBackend.Api/              # API layer
 │       ├── Controllers/                  # API controllers
 │       └── Middleware/                   # Custom middleware
 └── tests/
-    └── AzureProductApi.Tests/            # Unit tests
+    └── ImperialBackend.Tests/            # Unit tests
 ```
+
+## 🚀 Features
+
+### Outlet Management
+- ✅ Create, read, update, and delete outlets
+- ✅ Search outlets by name, location, and other criteria
+- ✅ Filter outlets by tier, chain type, and status
+- ✅ Track outlet visits and performance metrics
+- ✅ Manage outlet sales targets and achievements
+
+### Technical Features
+- ✅ **Clean Architecture** with clear separation of concerns
+- ✅ **CQRS Pattern** using MediatR
+- ✅ **Azure AD Authentication** for secure access
+- ✅ **Entity Framework Core** with SQL Server
+- ✅ **AutoMapper** for object mapping
+- ✅ **FluentValidation** for request validation
+- ✅ **Swagger/OpenAPI** documentation
+- ✅ **Structured Logging** with Serilog
+- ✅ **Health Checks** for monitoring
+- ✅ **CORS** support for frontend integration
 
 ## 🛠️ Prerequisites
 
-- .NET 8.0 SDK
-- SQL Server (LocalDB or full instance)
-- Azure AD tenant (for authentication)
-- Visual Studio 2022 or VS Code
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [SQL Server](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) or SQL Server LocalDB
+- [Visual Studio 2022](https://visualstudio.microsoft.com/) or [VS Code](https://code.visualstudio.com/)
 
-## ⚙️ Configuration
+## 🚀 Getting Started
 
-### 1. Database Configuration
-
-Update the connection string in `appsettings.json`:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=AzureOutletDb;Trusted_Connection=true;MultipleActiveResultSets=true;"
-  }
-}
+### 1. Clone the Repository
+```bash
+git clone <repository-url>
+cd ImperialBackend
 ```
 
-### 2. Azure AD Configuration
+### 2. Setup Database
+```bash
+cd src/ImperialBackend.Api
+dotnet ef migrations add InitialCreate --project ../ImperialBackend.Infrastructure
+dotnet ef database update --project ../ImperialBackend.Infrastructure
+```
 
-Configure Azure AD settings in `appsettings.json`:
-
+### 3. Configure Azure AD
+Update `appsettings.json` with your Azure AD configuration:
 ```json
 {
   "AzureAd": {
@@ -116,59 +84,9 @@ Configure Azure AD settings in `appsettings.json`:
 }
 ```
 
-### 3. Logging Configuration
-
-Serilog is configured for structured logging:
-
-```json
-{
-  "Serilog": {
-    "MinimumLevel": {
-      "Default": "Information",
-      "Override": {
-        "Microsoft": "Warning",
-        "System": "Warning"
-      }
-    },
-    "WriteTo": [
-      {
-        "Name": "Console"
-      },
-      {
-        "Name": "File",
-        "Args": {
-          "path": "logs/api-.txt",
-          "rollingInterval": "Day",
-          "retainedFileCountLimit": 7
-        }
-      }
-    ]
-  }
-}
-```
-
-## 🚀 Getting Started
-
-### 1. Clone and Setup
-
+### 4. Run the Application
 ```bash
-git clone <repository-url>
-cd AzureProductApi
-dotnet restore
-```
-
-### 2. Database Migration
-
-```bash
-cd src/AzureProductApi.Api
-dotnet ef migrations add InitialCreate --project ../AzureProductApi.Infrastructure
-dotnet ef database update --project ../AzureProductApi.Infrastructure
-```
-
-### 3. Run the Application
-
-```bash
-dotnet run --project src/AzureProductApi.Api
+dotnet run --project src/ImperialBackend.Api
 ```
 
 The API will be available at:
@@ -176,195 +94,113 @@ The API will be available at:
 - HTTP: `http://localhost:5000`
 - Swagger UI: `https://localhost:7001/swagger`
 
-## 📚 API Endpoints
-
-### Outlets
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/outlets` | Get outlets with filtering and pagination |
-| GET | `/api/outlets/{id}` | Get outlet by ID |
-| POST | `/api/outlets` | Create new outlet |
-| PUT | `/api/outlets/{id}` | Update outlet |
-| DELETE | `/api/outlets/{id}` | Delete outlet |
-| GET | `/api/outlets/tiers` | Get all outlet tiers |
-| GET | `/api/outlets/cities` | Get all cities |
-| GET | `/api/outlets/needing-visit` | Get outlets needing visits |
-| GET | `/api/outlets/high-performing` | Get high-performing outlets |
-
-### Query Parameters for GET /api/outlets
-
-- `tier`: Filter by tier
-- `chainType`: Filter by chain type (Regional=1, National=2)
-- `isActive`: Filter by active status
-- `city`: Filter by city
-- `state`: Filter by state
-- `searchTerm`: Search in name and address
-- `minRank`, `maxRank`: Filter by rank range
-- `needsVisit`: Filter outlets needing visits
-- `highPerforming`: Filter high-performing outlets
-- `pageNumber`: Page number (default: 1)
-- `pageSize`: Page size (default: 10, max: 100)
-- `sortBy`: Sort field (Name, Tier, Rank, etc.)
-- `sortDirection`: Sort direction (asc/desc)
-
-### Sample Request Bodies
-
-#### Create Outlet
-
-```json
-{
-  "name": "Downtown Store",
-  "tier": "Premium",
-  "rank": 1,
-  "chainType": 2,
-  "sales": 50000.00,
-  "currency": "USD",
-  "volumeSoldKg": 1200.50,
-  "volumeTargetKg": 1500.00,
-  "address": {
-    "street": "123 Main Street",
-    "city": "New York",
-    "state": "NY",
-    "postalCode": "10001",
-    "country": "USA"
-  },
-  "lastVisitDate": "2024-01-15T10:30:00Z"
-}
-```
-
-#### Update Outlet
-
-```json
-{
-  "name": "Downtown Premium Store",
-  "tier": "Premium Plus",
-  "rank": 1,
-  "chainType": 2,
-  "sales": 55000.00,
-  "currency": "USD",
-  "volumeSoldKg": 1350.75,
-  "volumeTargetKg": 1600.00,
-  "address": {
-    "street": "123 Main Street",
-    "city": "New York",
-    "state": "NY",
-    "postalCode": "10001",
-    "country": "USA"
-  },
-  "lastVisitDate": "2024-01-20T14:15:00Z"
-}
-```
-
-## 🔐 Authentication
-
-The API uses Azure AD for authentication. Include the Bearer token in the Authorization header:
-
-```
-Authorization: Bearer <your-jwt-token>
-```
-
-## 🧪 Testing
-
-### Run Unit Tests
+## 🧪 Running Tests
 
 ```bash
+# Run all tests
 dotnet test
-```
 
-### Run with Coverage
-
-```bash
+# Run tests with coverage
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-## 📊 Monitoring and Logging
+## 📊 API Endpoints
 
-### Request Logging
+### Outlets
+- `GET /api/outlets` - Get all outlets with filtering and pagination
+- `GET /api/outlets/{id}` - Get outlet by ID
+- `POST /api/outlets` - Create a new outlet
+- `PUT /api/outlets/{id}` - Update an outlet
+- `DELETE /api/outlets/{id}` - Delete an outlet
+- `POST /api/outlets/{id}/visit` - Record a visit to an outlet
+- `GET /api/outlets/tiers` - Get available outlet tiers
+- `GET /api/outlets/cities` - Get cities with outlets
 
-All HTTP requests and responses are logged with:
-- Request ID for correlation
-- Request/response headers and bodies
-- Performance metrics
-- User information
-- Error details
+### Health Checks
+- `GET /health` - Application health status
 
-### Performance Monitoring
-
-- Slow request detection (>5 seconds)
-- Database query performance
-- Memory usage tracking
-
-## 🔧 Development Guidelines
-
-### Adding New Features
-
-1. **Domain First**: Start with domain entities and business rules
-2. **Commands/Queries**: Implement CQRS commands and queries
-3. **Validation**: Add FluentValidation rules
-4. **Repository**: Extend repository interfaces and implementations
-5. **Controllers**: Create API endpoints
-6. **Tests**: Write comprehensive unit tests
-
-### Code Quality
-
-- Follow SOLID principles
-- Use dependency injection
-- Implement proper error handling
-- Write meaningful unit tests
-- Document public APIs
-- Use consistent naming conventions
-
-## 🚀 Deployment
-
-### Azure App Service
-
-1. Create Azure App Service
-2. Configure Azure AD authentication
-3. Set up Azure SQL Database
-4. Configure application settings
-5. Deploy using GitHub Actions or Azure DevOps
-
-### Docker
+## 🐳 Docker Support
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
-WORKDIR /app
-EXPOSE 80
-EXPOSE 443
-
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["src/AzureProductApi.Api/AzureProductApi.Api.csproj", "src/AzureProductApi.Api/"]
-RUN dotnet restore "src/AzureProductApi.Api/AzureProductApi.Api.csproj"
+
+# Copy project files
+COPY ["src/ImperialBackend.Api/ImperialBackend.Api.csproj", "src/ImperialBackend.Api/"]
+COPY ["src/ImperialBackend.Application/ImperialBackend.Application.csproj", "src/ImperialBackend.Application/"]
+COPY ["src/ImperialBackend.Domain/ImperialBackend.Domain.csproj", "src/ImperialBackend.Domain/"]
+COPY ["src/ImperialBackend.Infrastructure/ImperialBackend.Infrastructure.csproj", "src/ImperialBackend.Infrastructure/"]
+
+# Restore dependencies
+RUN dotnet restore "src/ImperialBackend.Api/ImperialBackend.Api.csproj"
+
+# Copy source code
 COPY . .
-WORKDIR "/src/src/AzureProductApi.Api"
-RUN dotnet build "AzureProductApi.Api.csproj" -c Release -o /app/build
 
-FROM build AS publish
-RUN dotnet publish "AzureProductApi.Api.csproj" -c Release -o /app/publish
+# Build application
+WORKDIR "/src/src/ImperialBackend.Api"
+RUN dotnet build "ImperialBackend.Api.csproj" -c Release -o /app/build
 
-FROM base AS final
+# Publish application
+RUN dotnet publish "ImperialBackend.Api.csproj" -c Release -o /app/publish
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "AzureProductApi.Api.dll"]
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "ImperialBackend.Api.dll"]
 ```
 
-## 📝 Contributing
+## 🔧 Configuration
+
+### Database Connection
+Update the connection string in `appsettings.json`:
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=ImperialBackendDb;Trusted_Connection=true;MultipleActiveResultSets=true;"
+  }
+}
+```
+
+### CORS Configuration
+Configure allowed origins in `appsettings.json`:
+```json
+{
+  "AllowedOrigins": [
+    "http://localhost:3000",
+    "https://localhost:3000"
+  ]
+}
+```
+
+## 🔒 Security
+
+- **Azure AD Integration**: Secure authentication using Azure Active Directory
+- **JWT Bearer Tokens**: API endpoints protected with JWT authentication
+- **HTTPS Enforcement**: All communications encrypted in production
+- **Input Validation**: Comprehensive request validation using FluentValidation
+
+## 📈 Monitoring & Logging
+
+- **Structured Logging**: Using Serilog with configurable log levels
+- **Health Checks**: Built-in health monitoring endpoints
+- **Performance Tracking**: Request/response logging middleware
+- **Error Handling**: Global exception handling with detailed logging
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
+2. Create a feature branch: `git checkout -b feature/new-feature`
+3. Commit your changes: `git commit -am 'Add new feature'`
+4. Push to the branch: `git push origin feature/new-feature`
 5. Submit a pull request
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## 🙋‍♂️ Support
 
-For support and questions:
-- Create an issue in the repository
-- Check the documentation
-- Review the API examples 
+For support and questions, please contact the development team at dev@company.com. 

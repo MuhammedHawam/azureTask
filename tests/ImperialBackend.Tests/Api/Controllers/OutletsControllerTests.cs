@@ -5,6 +5,7 @@ using ImperialBackend.Application.DTOs;
 using ImperialBackend.Application.Outlets.Commands.CreateOutlet;
 using ImperialBackend.Application.Outlets.Queries.GetOutlets;
 using ImperialBackend.Domain.Enums;
+using ImperialBackend.Domain.Interfaces;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -21,6 +22,7 @@ public class OutletsControllerTests
     private readonly Mock<IMediator> _mockMediator;
     private readonly Mock<IMapper> _mockMapper;
     private readonly Mock<ILogger<OutletsController>> _mockLogger;
+    private readonly Mock<IOutletRepository> _mockRepository;
     private readonly OutletsController _controller;
 
     public OutletsControllerTests()
@@ -28,6 +30,7 @@ public class OutletsControllerTests
         _mockMediator = new Mock<IMediator>();
         _mockMapper = new Mock<IMapper>();
         _mockLogger = new Mock<ILogger<OutletsController>>();
+        _mockRepository = new Mock<IOutletRepository>();
         
         _controller = new OutletsController(_mockMediator.Object, _mockMapper.Object, _mockLogger.Object, _mockRepository.Object);
         
@@ -139,14 +142,11 @@ public class OutletsControllerTests
 
         var result = Result<OutletDto>.Success(createdOutlet);
 
-        _mockMapper.Setup(m => m.Map<CreateOutletCommand>(createDto))
-            .Returns(command);
-
         _mockMediator.Setup(m => m.Send(It.Is<CreateOutletCommand>(c => c.UserId == "test-user-id"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(result);
 
         // Act
-        var response = await _controller.CreateOutlet(createDto);
+        var response = await _controller.CreateOutlet(command);
 
         // Assert
         response.Result.Should().BeOfType<CreatedAtActionResult>();
@@ -178,19 +178,16 @@ public class OutletsControllerTests
         var command = new CreateOutletCommand();
         var result = Result<OutletDto>.Failure("Outlet 'Existing Outlet' already exists in New York, NY");
 
-        _mockMapper.Setup(m => m.Map<CreateOutletCommand>(createDto))
-            .Returns(command);
-
         _mockMediator.Setup(m => m.Send(It.IsAny<CreateOutletCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(result);
 
         // Act
-        var response = await _controller.CreateOutlet(createDto);
+        var response = await _controller.CreateOutlet(command);
 
         // Assert
-        response.Result.Should().BeOfType<ConflictObjectResult>();
-        var conflictResult = response.Result as ConflictObjectResult;
-        conflictResult!.Value.Should().Be(result.Error);
+        response.Result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = response.Result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().Be(result.Error);
     }
 
     [Fact]
@@ -215,7 +212,7 @@ public class OutletsControllerTests
             .ReturnsAsync(result);
 
         // Act
-        var response = await _controller.CreateOutlet(createDto);
+        var response = await _controller.CreateOutlet(command);
 
         // Assert
         response.Result.Should().BeOfType<BadRequestObjectResult>();

@@ -1,7 +1,8 @@
 using AutoMapper;
 using AzureProductApi.Application.DTOs;
-using AzureProductApi.Application.Products.Commands.CreateProduct;
+using AzureProductApi.Application.Outlets.Commands.CreateOutlet;
 using AzureProductApi.Domain.Entities;
+using AzureProductApi.Domain.ValueObjects;
 
 namespace AzureProductApi.Application.Common.Mappings;
 
@@ -15,22 +16,22 @@ public class MappingProfile : Profile
     /// </summary>
     public MappingProfile()
     {
-        CreateMap<Product, ProductDto>()
-            .ForMember(dest => dest.Price, opt => opt.MapFrom(src => src.Price.Amount))
-            .ForMember(dest => dest.Currency, opt => opt.MapFrom(src => src.Price.Currency))
-            .ForMember(dest => dest.Tags, opt => opt.MapFrom(src => src.Tags.ToList()));
+        CreateMap<Outlet, OutletDto>()
+            .ForMember(dest => dest.Sales, opt => opt.MapFrom(src => src.Sales.Amount))
+            .ForMember(dest => dest.Currency, opt => opt.MapFrom(src => src.Sales.Currency));
 
-        CreateMap<CreateProductDto, CreateProductCommand>();
+        CreateMap<Address, AddressDto>().ReverseMap();
 
-        CreateMap<UpdateProductDto, Product>()
+        CreateMap<CreateOutletDto, CreateOutletCommand>();
+
+        CreateMap<UpdateOutletDto, Outlet>()
             .ForMember(dest => dest.Id, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
             .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
             .ForMember(dest => dest.UpdatedBy, opt => opt.Ignore())
-            .ForMember(dest => dest.Price, opt => opt.Ignore())
-            .ForMember(dest => dest.Tags, opt => opt.Ignore())
-            .ForMember(dest => dest.SKU, opt => opt.Ignore())
+            .ForMember(dest => dest.Sales, opt => opt.Ignore())
+            .ForMember(dest => dest.Address, opt => opt.Ignore())
             .ForMember(dest => dest.IsActive, opt => opt.Ignore());
     }
 }

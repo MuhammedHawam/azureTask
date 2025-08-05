@@ -4,11 +4,12 @@ using ImperialBackend.Domain.Interfaces;
 using ImperialBackend.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq.Expressions;
 
 namespace ImperialBackend.Infrastructure.Repositories;
 
 /// <summary>
-/// Entity Framework implementation of IOutletRepository
+/// Entity Framework implementation of IOutletRepository with optimized queries
 /// </summary>
 public class OutletRepository : IOutletRepository
 {
@@ -30,112 +31,84 @@ public class OutletRepository : IOutletRepository
     public async Task<Outlet?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Getting outlet by ID: {OutletId}", id);
-        return await _context.Outlets.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        return await _context.Outlets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<Outlet>> GetAllAsync(
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Getting outlets - Page: {PageNumber}, PageSize: {PageSize}", pageNumber, pageSize);
+
+        var skip = (pageNumber - 1) * pageSize;
+
+        return await _context.Outlets
+            .AsNoTracking()
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Getting total outlet count");
+        return await _context.Outlets.CountAsync(cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task<IEnumerable<Outlet>> GetByNameAsync(string name, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(name))
+            return Enumerable.Empty<Outlet>();
+
         _logger.LogDebug("Getting outlets by name: {Name}", name);
         return await _context.Outlets
+            .AsNoTracking()
             .Where(o => o.Name.Contains(name))
             .OrderBy(o => o.Name)
             .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<Outlet>> GetAllAsync(
-        string? tier = null,
-        ChainType? chainType = null,
-        bool? isActive = null,
-        string? city = null,
-        string? state = null,
-        int pageNumber = 1,
-        int pageSize = 10,
-        CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Outlet>> GetByTierAsync(string tier, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Getting outlets - Tier: {Tier}, ChainType: {ChainType}, IsActive: {IsActive}, City: {City}, State: {State}, Page: {PageNumber}, PageSize: {PageSize}",
-            tier, chainType, isActive, city, state, pageNumber, pageSize);
+        if (string.IsNullOrWhiteSpace(tier))
+            return Enumerable.Empty<Outlet>();
 
-        var query = _context.Outlets.AsQueryable();
-
-        // Apply filters
-        if (!string.IsNullOrWhiteSpace(tier))
-        {
-            query = query.Where(o => o.Tier.ToLower() == tier.ToLower());
-        }
-
-        if (chainType.HasValue)
-        {
-            query = query.Where(o => o.ChainType == chainType.Value);
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(o => o.IsActive == isActive.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(city))
-        {
-            query = query.Where(o => EF.Property<string>(o.Address, "City").ToLower() == city.ToLower());
-        }
-
-        if (!string.IsNullOrWhiteSpace(state))
-        {
-            query = query.Where(o => EF.Property<string>(o.Address, "State").ToLower() == state.ToLower());
-        }
-
-        // Apply pagination
-        var skip = (pageNumber - 1) * pageSize;
-        query = query.Skip(skip).Take(pageSize);
-
-        // Order by creation date (most recent first)
-        query = query.OrderByDescending(o => o.CreatedAt);
-
-        return await query.ToListAsync(cancellationToken);
+        _logger.LogDebug("Getting outlets by tier: {Tier}", tier);
+        return await _context.Outlets
+            .AsNoTracking()
+            .Where(o => o.Tier == tier)
+            .OrderBy(o => o.Name)
+            .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<int> GetCountAsync(
-        string? tier = null,
-        ChainType? chainType = null,
-        bool? isActive = null,
-        string? city = null,
-        string? state = null,
-        CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Outlet>> GetByChainTypeAsync(ChainType chainType, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Getting outlet count - Tier: {Tier}, ChainType: {ChainType}, IsActive: {IsActive}, City: {City}, State: {State}",
-            tier, chainType, isActive, city, state);
+        _logger.LogDebug("Getting outlets by chain type: {ChainType}", chainType);
+        return await _context.Outlets
+            .AsNoTracking()
+            .Where(o => o.ChainType == chainType)
+            .OrderBy(o => o.Name)
+            .ToListAsync(cancellationToken);
+    }
 
-        var query = _context.Outlets.AsQueryable();
-
-        // Apply filters
-        if (!string.IsNullOrWhiteSpace(tier))
-        {
-            query = query.Where(o => o.Tier.ToLower() == tier.ToLower());
-        }
-
-        if (chainType.HasValue)
-        {
-            query = query.Where(o => o.ChainType == chainType.Value);
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(o => o.IsActive == isActive.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(city))
-        {
-            query = query.Where(o => EF.Property<string>(o.Address, "City").ToLower() == city.ToLower());
-        }
-
-        if (!string.IsNullOrWhiteSpace(state))
-        {
-            query = query.Where(o => EF.Property<string>(o.Address, "State").ToLower() == state.ToLower());
-        }
-
-        return await query.CountAsync(cancellationToken);
+    /// <inheritdoc />
+    public async Task<IEnumerable<Outlet>> GetActiveOutletsAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Getting active outlets");
+        return await _context.Outlets
+            .AsNoTracking()
+            .Where(o => o.IsActive)
+            .OrderBy(o => o.Name)
+            .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -145,44 +118,24 @@ public class OutletRepository : IOutletRepository
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return await GetAllAsync(pageNumber, pageSize, cancellationToken);
+
         _logger.LogDebug("Searching outlets with term: {SearchTerm}, Page: {PageNumber}, PageSize: {PageSize}",
             searchTerm, pageNumber, pageSize);
 
-        var query = _context.Outlets
+        var skip = (pageNumber - 1) * pageSize;
+
+        return await _context.Outlets
+            .AsNoTracking()
             .Where(o => o.Name.Contains(searchTerm) || 
                        EF.Property<string>(o.Address, "Street").Contains(searchTerm) ||
                        EF.Property<string>(o.Address, "City").Contains(searchTerm) ||
                        EF.Property<string>(o.Address, "State").Contains(searchTerm))
-            .OrderByDescending(o => o.CreatedAt);
-
-        // Apply pagination
-        var skip = (pageNumber - 1) * pageSize;
-        var paginatedQuery = query.Skip(skip).Take(pageSize);
-
-        return await paginatedQuery.ToListAsync(cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<Outlet>> GetOutletsNeedingVisitAsync(
-        int maxDaysSinceVisit = 30,
-        int pageNumber = 1,
-        int pageSize = 10,
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("Getting outlets needing visit - MaxDays: {MaxDaysSinceVisit}, Page: {PageNumber}, PageSize: {PageSize}",
-            maxDaysSinceVisit, pageNumber, pageSize);
-
-        var cutoffDate = DateTime.UtcNow.AddDays(-maxDaysSinceVisit);
-
-        var query = _context.Outlets
-            .Where(o => o.IsActive && (o.LastVisitDate == null || o.LastVisitDate < cutoffDate))
-            .OrderBy(o => o.LastVisitDate ?? DateTime.MinValue);
-
-        // Apply pagination
-        var skip = (pageNumber - 1) * pageSize;
-        var paginatedQuery = query.Skip(skip).Take(pageSize);
-
-        return await paginatedQuery.ToListAsync(cancellationToken);
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -196,69 +149,72 @@ public class OutletRepository : IOutletRepository
         _logger.LogDebug("Getting outlets by rank range: {MinRank}-{MaxRank}, Page: {PageNumber}, PageSize: {PageSize}",
             minRank, maxRank, pageNumber, pageSize);
 
-        var query = _context.Outlets
-            .Where(o => o.Rank >= minRank && o.Rank <= maxRank)
-            .OrderBy(o => o.Rank);
-
-        // Apply pagination
         var skip = (pageNumber - 1) * pageSize;
-        var paginatedQuery = query.Skip(skip).Take(pageSize);
 
-        return await paginatedQuery.ToListAsync(cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<string>> GetTiersAsync(CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("Getting all outlet tiers");
         return await _context.Outlets
-            .Select(o => o.Tier)
-            .Distinct()
-            .OrderBy(t => t)
+            .AsNoTracking()
+            .Where(o => o.Rank >= minRank && o.Rank <= maxRank)
+            .OrderBy(o => o.Rank)
+            .Skip(skip)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<string>> GetCitiesAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Outlet>> GetOutletsNeedingVisitAsync(
+        int maxDaysSinceVisit = 30,
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Getting all outlet cities");
+        _logger.LogDebug("Getting outlets needing visit - MaxDays: {MaxDays}, Page: {PageNumber}, PageSize: {PageSize}",
+            maxDaysSinceVisit, pageNumber, pageSize);
+
+        var cutoffDate = DateTime.UtcNow.AddDays(-maxDaysSinceVisit);
+        var skip = (pageNumber - 1) * pageSize;
+
         return await _context.Outlets
-            .Select(o => EF.Property<string>(o.Address, "City"))
-            .Distinct()
-            .OrderBy(c => c)
+            .AsNoTracking()
+            .Where(o => o.IsActive && (o.LastVisitDate == null || o.LastVisitDate < cutoffDate))
+            .OrderBy(o => o.LastVisitDate ?? DateTime.MinValue)
+            .Skip(skip)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task<IEnumerable<Outlet>> GetHighPerformingOutletsAsync(
-        decimal minAchievementPercentage = 100,
+        decimal minAchievementPercentage = 80.0m,
         int pageNumber = 1,
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Getting high-performing outlets - MinAchievement: {MinAchievementPercentage}%, Page: {PageNumber}, PageSize: {PageSize}",
+        _logger.LogDebug("Getting high performing outlets - MinAchievement: {MinAchievement}%, Page: {PageNumber}, PageSize: {PageSize}",
             minAchievementPercentage, pageNumber, pageSize);
 
-        var query = _context.Outlets
+        var skip = (pageNumber - 1) * pageSize;
+
+        return await _context.Outlets
+            .AsNoTracking()
             .Where(o => o.IsActive && o.VolumeTargetKg > 0 && 
                        (o.VolumeSoldKg / o.VolumeTargetKg * 100) >= minAchievementPercentage)
-            .OrderByDescending(o => o.VolumeSoldKg / o.VolumeTargetKg);
-
-        // Apply pagination
-        var skip = (pageNumber - 1) * pageSize;
-        var paginatedQuery = query.Skip(skip).Take(pageSize);
-
-        return await paginatedQuery.ToListAsync(cancellationToken);
+            .OrderByDescending(o => o.VolumeSoldKg / o.VolumeTargetKg)
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task<Outlet> AddAsync(Outlet outlet, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Adding outlet: {Name}", outlet.Name);
-        
+        if (outlet == null)
+            throw new ArgumentNullException(nameof(outlet));
+
+        _logger.LogDebug("Adding new outlet: {OutletName}", outlet.Name);
+
         _context.Outlets.Add(outlet);
         await _context.SaveChangesAsync(cancellationToken);
-        
+
         _logger.LogInformation("Successfully added outlet with ID: {OutletId}", outlet.Id);
         return outlet;
     }
@@ -266,55 +222,66 @@ public class OutletRepository : IOutletRepository
     /// <inheritdoc />
     public async Task<Outlet> UpdateAsync(Outlet outlet, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Updating outlet with ID: {OutletId}", outlet.Id);
-        
+        if (outlet == null)
+            throw new ArgumentNullException(nameof(outlet));
+
+        _logger.LogDebug("Updating outlet: {OutletId}", outlet.Id);
+
         _context.Outlets.Update(outlet);
         await _context.SaveChangesAsync(cancellationToken);
-        
-        _logger.LogInformation("Successfully updated outlet with ID: {OutletId}", outlet.Id);
+
+        _logger.LogInformation("Successfully updated outlet: {OutletId}", outlet.Id);
         return outlet;
     }
 
     /// <inheritdoc />
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Deleting outlet with ID: {OutletId}", id);
-        
+        _logger.LogDebug("Deleting outlet: {OutletId}", id);
+
         var outlet = await _context.Outlets.FindAsync(new object[] { id }, cancellationToken);
         if (outlet == null)
         {
-            _logger.LogWarning("Outlet with ID {OutletId} not found for deletion", id);
+            _logger.LogWarning("Outlet not found for deletion: {OutletId}", id);
             return false;
         }
 
         _context.Outlets.Remove(outlet);
         await _context.SaveChangesAsync(cancellationToken);
-        
-        _logger.LogInformation("Successfully deleted outlet with ID: {OutletId}", id);
+
+        _logger.LogInformation("Successfully deleted outlet: {OutletId}", id);
         return true;
     }
 
     /// <inheritdoc />
-    public async Task<bool> ExistsWithNameAndLocationAsync(
-        string name, 
-        string city, 
-        string state, 
-        Guid? excludeId = null, 
-        CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Checking if outlet exists with name: {Name} in {City}, {State}, ExcludeId: {ExcludeId}", 
-            name, city, state, excludeId);
-        
-        var query = _context.Outlets.Where(o => 
-            o.Name.ToLower() == name.ToLower() &&
-            EF.Property<string>(o.Address, "City").ToLower() == city.ToLower() &&
-            EF.Property<string>(o.Address, "State").ToLower() == state.ToLower());
-        
-        if (excludeId.HasValue)
-        {
-            query = query.Where(o => o.Id != excludeId.Value);
-        }
+        return await _context.Outlets.AnyAsync(o => o.Id == id, cancellationToken);
+    }
 
-        return await query.AnyAsync(cancellationToken);
+    /// <inheritdoc />
+    public async Task<IEnumerable<string>> GetDistinctTiersAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Getting distinct tiers");
+        return await _context.Outlets
+            .AsNoTracking()
+            .Where(o => !string.IsNullOrEmpty(o.Tier))
+            .Select(o => o.Tier)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<string>> GetDistinctCitiesAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Getting distinct cities");
+        return await _context.Outlets
+            .AsNoTracking()
+            .Select(o => EF.Property<string>(o.Address, "City"))
+            .Where(c => !string.IsNullOrEmpty(c))
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync(cancellationToken);
     }
 }

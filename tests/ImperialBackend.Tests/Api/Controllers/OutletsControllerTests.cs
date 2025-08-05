@@ -72,7 +72,8 @@ public class OutletsControllerTests
             .ReturnsAsync(result);
 
         // Act
-        var response = await _controller.GetOutlets();
+        var query = new GetOutletsQuery();
+        var response = await _controller.GetOutlets(query);
 
         // Assert
         response.Result.Should().BeOfType<OkObjectResult>();
@@ -90,7 +91,8 @@ public class OutletsControllerTests
             .ReturnsAsync(result);
 
         // Act
-        var response = await _controller.GetOutlets();
+        var query = new GetOutletsQuery();
+        var response = await _controller.GetOutlets(query);
 
         // Assert
         response.Result.Should().BeOfType<BadRequestObjectResult>();
@@ -307,7 +309,15 @@ public class OutletsControllerTests
             .ReturnsAsync(result);
 
         // Act
-        await _controller.GetOutlets(tier, chainType, isActive, city, state);
+        var query = new GetOutletsQuery
+        {
+            Tier = tier,
+            ChainType = chainType,
+            IsActive = isActive,
+            City = city,
+            State = state
+        };
+        await _controller.GetOutlets(query);
 
         // Assert
         _mockMediator.Verify(m => m.Send(It.Is<GetOutletsQuery>(q =>

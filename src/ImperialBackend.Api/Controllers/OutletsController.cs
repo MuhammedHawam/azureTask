@@ -46,80 +46,29 @@ public class OutletsController : ControllerBase
     /// <summary>
     /// Gets outlets with comprehensive filtering, sorting, and pagination
     /// </summary>
-    /// <param name="tier">Filter by tier</param>
-    /// <param name="chainType">Filter by chain type (1=Regional, 2=National)</param>
-    /// <param name="isActive">Filter by active status</param>
-    /// <param name="city">Filter by city</param>
-    /// <param name="state">Filter by state</param>
-    /// <param name="searchTerm">Search in name and address</param>
-    /// <param name="minRank">Minimum rank filter</param>
-    /// <param name="maxRank">Maximum rank filter</param>
-    /// <param name="needsVisit">Filter outlets needing visits</param>
-    /// <param name="maxDaysSinceVisit">Maximum days since visit for filtering outlets that need visits</param>
-    /// <param name="highPerforming">Filter high-performing outlets</param>
-    /// <param name="minAchievementPercentage">Minimum achievement percentage for high-performing outlets</param>
-    /// <param name="pageNumber">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 10, max: 100)</param>
-    /// <param name="sortBy">Sort field</param>
-    /// <param name="sortDirection">Sort direction (asc/desc)</param>
+    /// <param name="query">The query parameters for filtering, sorting, and pagination</param>
     /// <returns>A paginated list of outlets</returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<OutletDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<PagedResult<OutletDto>>> GetOutlets(
-        [FromQuery] string? tier = null,
-        [FromQuery] ChainType? chainType = null,
-        [FromQuery] bool? isActive = null,
-        [FromQuery] string? city = null,
-        [FromQuery] string? state = null,
-        [FromQuery] string? searchTerm = null,
-        [FromQuery] int? minRank = null,
-        [FromQuery] int? maxRank = null,
-        [FromQuery] bool? needsVisit = null,
-        [FromQuery] int maxDaysSinceVisit = 30,
-        [FromQuery] bool? highPerforming = null,
-        [FromQuery] decimal minAchievementPercentage = 80.0m,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10,
-        [FromQuery] string sortBy = "CreatedAt",
-        [FromQuery] string sortDirection = "desc")
+    public async Task<ActionResult<PagedResult<OutletDto>>> GetOutlets([FromQuery] GetOutletsQuery query)
     {
         try
         {
             _logger.LogInformation("Getting outlets with filters - Page: {PageNumber}, PageSize: {PageSize}, SortBy: {SortBy}", 
-                pageNumber, pageSize, sortBy);
+                query.PageNumber, query.PageSize, query.SortBy);
 
             // Validate pagination parameters
-            if (pageNumber < 1)
+            if (query.PageNumber < 1)
             {
                 return BadRequest("Page number must be greater than 0");
             }
 
-            if (pageSize < 1 || pageSize > 100)
+            if (query.PageSize < 1 || query.PageSize > 100)
             {
                 return BadRequest("Page size must be between 1 and 100");
             }
-
-            var query = new GetOutletsQuery
-            {
-                Tier = tier,
-                ChainType = chainType,
-                IsActive = isActive,
-                City = city,
-                State = state,
-                SearchTerm = searchTerm,
-                MinRank = minRank,
-                MaxRank = maxRank,
-                NeedsVisit = needsVisit,
-                MaxDaysSinceVisit = maxDaysSinceVisit,
-                HighPerforming = highPerforming,
-                MinAchievementPercentage = minAchievementPercentage,
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                SortBy = sortBy,
-                SortDirection = sortDirection
-            };
 
             var result = await _mediator.Send(query);
 

@@ -1,39 +1,51 @@
 using ImperialBackend.Domain.Entities;
 using ImperialBackend.Domain.Enums;
 using ImperialBackend.Domain.Interfaces;
-using ImperialBackend.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
+using ImperialBackend.Domain.ValueObjects;
+using ImperialBackend.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
-using System.Linq.Expressions;
+using Dapper;
+using System.Text;
 
 namespace ImperialBackend.Infrastructure.Repositories;
 
 /// <summary>
-/// Entity Framework implementation of IOutletRepository with optimized queries
+/// Databricks implementation of IOutletRepository using Dapper
 /// </summary>
 public class OutletRepository : IOutletRepository
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDatabricksConnectionService _connectionService;
     private readonly ILogger<OutletRepository> _logger;
+    private readonly string _tableName;
 
     /// <summary>
     /// Initializes a new instance of the OutletRepository class
     /// </summary>
-    /// <param name="context">The database context</param>
+    /// <param name="connectionService">The Databricks connection service</param>
     /// <param name="logger">The logger</param>
-    public OutletRepository(ApplicationDbContext context, ILogger<OutletRepository> logger)
+    public OutletRepository(IDatabricksConnectionService connectionService, ILogger<OutletRepository> logger)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _connectionService = connectionService ?? throw new ArgumentNullException(nameof(connectionService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _tableName = _connectionService.GetFullTableName("outlets");
     }
 
     /// <inheritdoc />
     public async Task<Outlet?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Getting outlet by ID: {OutletId}", id);
-        return await _context.Outlets
-            .AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE Id = ?";
+
+        var result = await connection.QueryFirstOrDefaultAsync<OutletDataModel>(sql, new { Id = id.ToString() });
+        return result?.ToOutlet();
     }
 
     /// <inheritdoc />
@@ -59,20 +71,26 @@ public class OutletRepository : IOutletRepository
         _logger.LogDebug("Getting outlets with filters - Page: {PageNumber}, PageSize: {PageSize}, SortBy: {SortBy}", 
             pageNumber, pageSize, sortBy);
 
-        var query = _context.Outlets.AsNoTracking().AsQueryable();
-
-        // Apply filters efficiently at database level
-        query = ApplyFilters(query, tier, chainType, isActive, city, state, searchTerm, 
+        using var connection = _connectionService.CreateConnection();
+        
+        var (whereClause, parameters) = BuildWhereClause(tier, chainType, isActive, city, state, searchTerm, 
             minRank, maxRank, needsVisit, maxDaysSinceVisit, highPerforming, minAchievementPercentage);
-
-        // Apply sorting at database level
-        query = ApplySorting(query, sortBy, sortDirection);
-
-        // Apply pagination
+        
+        var orderClause = BuildOrderClause(sortBy, sortDirection);
         var skip = (pageNumber - 1) * pageSize;
-        query = query.Skip(skip).Take(pageSize);
 
-        return await query.ToListAsync(cancellationToken);
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            {whereClause}
+            {orderClause}
+            LIMIT {pageSize} OFFSET {skip}";
+
+        var results = await connection.QueryAsync<OutletDataModel>(sql, parameters);
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
@@ -93,148 +111,14 @@ public class OutletRepository : IOutletRepository
     {
         _logger.LogDebug("Getting outlet count with filters");
 
-        var query = _context.Outlets.AsQueryable();
-
-        // Apply the same filters as GetAllAsync
-        query = ApplyFilters(query, tier, chainType, isActive, city, state, searchTerm, 
+        using var connection = _connectionService.CreateConnection();
+        
+        var (whereClause, parameters) = BuildWhereClause(tier, chainType, isActive, city, state, searchTerm, 
             minRank, maxRank, needsVisit, maxDaysSinceVisit, highPerforming, minAchievementPercentage);
 
-        return await query.CountAsync(cancellationToken);
-    }
+        var sql = $"SELECT COUNT(*) FROM {_tableName} {whereClause}";
 
-    /// <summary>
-    /// Applies filters to the query efficiently at database level
-    /// </summary>
-    private IQueryable<Outlet> ApplyFilters(
-        IQueryable<Outlet> query,
-        string? tier,
-        ChainType? chainType,
-        bool? isActive,
-        string? city,
-        string? state,
-        string? searchTerm,
-        int? minRank,
-        int? maxRank,
-        bool? needsVisit,
-        int maxDaysSinceVisit,
-        bool? highPerforming,
-        decimal minAchievementPercentage)
-    {
-        // Filter by tier
-        if (!string.IsNullOrWhiteSpace(tier))
-        {
-            query = query.Where(o => o.Tier == tier);
-        }
-
-        // Filter by chain type
-        if (chainType.HasValue)
-        {
-            query = query.Where(o => o.ChainType == chainType.Value);
-        }
-
-        // Filter by active status
-        if (isActive.HasValue)
-        {
-            query = query.Where(o => o.IsActive == isActive.Value);
-        }
-
-        // Filter by city
-        if (!string.IsNullOrWhiteSpace(city))
-        {
-            query = query.Where(o => EF.Property<string>(o.Address, "City") == city);
-        }
-
-        // Filter by state
-        if (!string.IsNullOrWhiteSpace(state))
-        {
-            query = query.Where(o => EF.Property<string>(o.Address, "State") == state);
-        }
-
-        // Search term filter
-        if (!string.IsNullOrWhiteSpace(searchTerm))
-        {
-            query = query.Where(o => o.Name.Contains(searchTerm) || 
-                               EF.Property<string>(o.Address, "Street").Contains(searchTerm) ||
-                               EF.Property<string>(o.Address, "City").Contains(searchTerm) ||
-                               EF.Property<string>(o.Address, "State").Contains(searchTerm));
-        }
-
-        // Filter by rank range
-        if (minRank.HasValue)
-        {
-            query = query.Where(o => o.Rank >= minRank.Value);
-        }
-        if (maxRank.HasValue)
-        {
-            query = query.Where(o => o.Rank <= maxRank.Value);
-        }
-
-        // Filter outlets needing visits
-        if (needsVisit == true)
-        {
-            var cutoffDate = DateTime.UtcNow.AddDays(-maxDaysSinceVisit);
-            query = query.Where(o => o.IsActive && (o.LastVisitDate == null || o.LastVisitDate < cutoffDate));
-        }
-
-        // Filter high-performing outlets
-        if (highPerforming == true)
-        {
-            query = query.Where(o => o.IsActive && o.VolumeTargetKg > 0 && 
-                               (o.VolumeSoldKg / o.VolumeTargetKg * 100) >= minAchievementPercentage);
-        }
-
-        return query;
-    }
-
-    /// <summary>
-    /// Applies sorting to the query efficiently at database level
-    /// </summary>
-    private IOrderedQueryable<Outlet> ApplySorting(IQueryable<Outlet> query, string sortBy, string sortDirection)
-    {
-        var isDescending = sortDirection.Equals("desc", StringComparison.OrdinalIgnoreCase);
-
-        return sortBy.ToLowerInvariant() switch
-        {
-            "name" => isDescending
-                ? query.OrderByDescending(o => o.Name)
-                : query.OrderBy(o => o.Name),
-            "tier" => isDescending
-                ? query.OrderByDescending(o => o.Tier)
-                : query.OrderBy(o => o.Tier),
-            "rank" => isDescending
-                ? query.OrderByDescending(o => o.Rank)
-                : query.OrderBy(o => o.Rank),
-            "chaintype" => isDescending
-                ? query.OrderByDescending(o => o.ChainType)
-                : query.OrderBy(o => o.ChainType),
-            "sales" => isDescending
-                ? query.OrderByDescending(o => o.Sales.Amount)
-                : query.OrderBy(o => o.Sales.Amount),
-            "volumesold" => isDescending
-                ? query.OrderByDescending(o => o.VolumeSoldKg)
-                : query.OrderBy(o => o.VolumeSoldKg),
-            "volumetarget" => isDescending
-                ? query.OrderByDescending(o => o.VolumeTargetKg)
-                : query.OrderBy(o => o.VolumeTargetKg),
-            "targetachievement" => isDescending
-                ? query.OrderByDescending(o => o.VolumeTargetKg > 0 ? (o.VolumeSoldKg / o.VolumeTargetKg * 100) : 0)
-                : query.OrderBy(o => o.VolumeTargetKg > 0 ? (o.VolumeSoldKg / o.VolumeTargetKg * 100) : 0),
-            "lastvisitdate" => isDescending
-                ? query.OrderByDescending(o => o.LastVisitDate)
-                : query.OrderBy(o => o.LastVisitDate),
-            "city" => isDescending
-                ? query.OrderByDescending(o => EF.Property<string>(o.Address, "City"))
-                : query.OrderBy(o => EF.Property<string>(o.Address, "City")),
-            "state" => isDescending
-                ? query.OrderByDescending(o => EF.Property<string>(o.Address, "State"))
-                : query.OrderBy(o => EF.Property<string>(o.Address, "State")),
-            "updatedat" => isDescending
-                ? query.OrderByDescending(o => o.UpdatedAt)
-                : query.OrderBy(o => o.UpdatedAt),
-            _ => isDescending
-                ? query.OrderByDescending(o => o.CreatedAt)
-                : query.OrderBy(o => o.CreatedAt)
-        };
+        return await connection.QuerySingleAsync<int>(sql, parameters);
     }
 
     /// <inheritdoc />
@@ -244,11 +128,19 @@ public class OutletRepository : IOutletRepository
             return Enumerable.Empty<Outlet>();
 
         _logger.LogDebug("Getting outlets by name: {Name}", name);
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => o.Name.Contains(name))
-            .OrderBy(o => o.Name)
-            .ToListAsync(cancellationToken);
+        
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE Name LIKE ?
+            ORDER BY Name";
+
+        var results = await connection.QueryAsync<OutletDataModel>(sql, new { Name = $"%{name}%" });
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
@@ -258,33 +150,57 @@ public class OutletRepository : IOutletRepository
             return Enumerable.Empty<Outlet>();
 
         _logger.LogDebug("Getting outlets by tier: {Tier}", tier);
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => o.Tier == tier)
-            .OrderBy(o => o.Name)
-            .ToListAsync(cancellationToken);
+        
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE Tier = ?
+            ORDER BY Name";
+
+        var results = await connection.QueryAsync<OutletDataModel>(sql, new { Tier = tier });
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
     public async Task<IEnumerable<Outlet>> GetByChainTypeAsync(ChainType chainType, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Getting outlets by chain type: {ChainType}", chainType);
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => o.ChainType == chainType)
-            .OrderBy(o => o.Name)
-            .ToListAsync(cancellationToken);
+        
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE ChainType = ?
+            ORDER BY Name";
+
+        var results = await connection.QueryAsync<OutletDataModel>(sql, new { ChainType = (int)chainType });
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
     public async Task<IEnumerable<Outlet>> GetActiveOutletsAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Getting active outlets");
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => o.IsActive)
-            .OrderBy(o => o.Name)
-            .ToListAsync(cancellationToken);
+        
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE IsActive = true
+            ORDER BY Name";
+
+        var results = await connection.QueryAsync<OutletDataModel>(sql);
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
@@ -300,18 +216,27 @@ public class OutletRepository : IOutletRepository
         _logger.LogDebug("Searching outlets with term: {SearchTerm}, Page: {PageNumber}, PageSize: {PageSize}",
             searchTerm, pageNumber, pageSize);
 
+        using var connection = _connectionService.CreateConnection();
         var skip = (pageNumber - 1) * pageSize;
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE Name LIKE ? OR AddressStreet LIKE ? OR AddressCity LIKE ? OR AddressState LIKE ?
+            ORDER BY CreatedAt DESC
+            LIMIT {pageSize} OFFSET {skip}";
 
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => o.Name.Contains(searchTerm) || 
-                       EF.Property<string>(o.Address, "Street").Contains(searchTerm) ||
-                       EF.Property<string>(o.Address, "City").Contains(searchTerm) ||
-                       EF.Property<string>(o.Address, "State").Contains(searchTerm))
-            .OrderByDescending(o => o.CreatedAt)
-            .Skip(skip)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        var searchPattern = $"%{searchTerm}%";
+        var results = await connection.QueryAsync<OutletDataModel>(sql, new { 
+            SearchTerm1 = searchPattern,
+            SearchTerm2 = searchPattern,
+            SearchTerm3 = searchPattern,
+            SearchTerm4 = searchPattern
+        });
+        
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
@@ -325,15 +250,20 @@ public class OutletRepository : IOutletRepository
         _logger.LogDebug("Getting outlets by rank range: {MinRank}-{MaxRank}, Page: {PageNumber}, PageSize: {PageSize}",
             minRank, maxRank, pageNumber, pageSize);
 
+        using var connection = _connectionService.CreateConnection();
         var skip = (pageNumber - 1) * pageSize;
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE Rank >= ? AND Rank <= ?
+            ORDER BY Rank
+            LIMIT {pageSize} OFFSET {skip}";
 
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => o.Rank >= minRank && o.Rank <= maxRank)
-            .OrderBy(o => o.Rank)
-            .Skip(skip)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        var results = await connection.QueryAsync<OutletDataModel>(sql, new { MinRank = minRank, MaxRank = maxRank });
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
@@ -346,16 +276,21 @@ public class OutletRepository : IOutletRepository
         _logger.LogDebug("Getting outlets needing visit - MaxDays: {MaxDays}, Page: {PageNumber}, PageSize: {PageSize}",
             maxDaysSinceVisit, pageNumber, pageSize);
 
+        using var connection = _connectionService.CreateConnection();
         var cutoffDate = DateTime.UtcNow.AddDays(-maxDaysSinceVisit);
         var skip = (pageNumber - 1) * pageSize;
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE IsActive = true AND (LastVisitDate IS NULL OR LastVisitDate < ?)
+            ORDER BY LastVisitDate ASC
+            LIMIT {pageSize} OFFSET {skip}";
 
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => o.IsActive && (o.LastVisitDate == null || o.LastVisitDate < cutoffDate))
-            .OrderBy(o => o.LastVisitDate ?? DateTime.MinValue)
-            .Skip(skip)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        var results = await connection.QueryAsync<OutletDataModel>(sql, new { CutoffDate = cutoffDate });
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
@@ -368,16 +303,20 @@ public class OutletRepository : IOutletRepository
         _logger.LogDebug("Getting high performing outlets - MinAchievement: {MinAchievement}%, Page: {PageNumber}, PageSize: {PageSize}",
             minAchievementPercentage, pageNumber, pageSize);
 
+        using var connection = _connectionService.CreateConnection();
         var skip = (pageNumber - 1) * pageSize;
+        var sql = $@"
+            SELECT 
+                Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency,
+                VolumeSoldKg, VolumeTargetKg, AddressStreet, AddressCity, AddressState,
+                AddressZipCode, AddressCountry, IsActive, LastVisitDate, CreatedAt, UpdatedAt
+            FROM {_tableName} 
+            WHERE IsActive = true AND VolumeTargetKg > 0 AND (VolumeSoldKg / VolumeTargetKg * 100) >= ?
+            ORDER BY (VolumeSoldKg / VolumeTargetKg) DESC
+            LIMIT {pageSize} OFFSET {skip}";
 
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => o.IsActive && o.VolumeTargetKg > 0 && 
-                       (o.VolumeSoldKg / o.VolumeTargetKg * 100) >= minAchievementPercentage)
-            .OrderByDescending(o => o.VolumeSoldKg / o.VolumeTargetKg)
-            .Skip(skip)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        var results = await connection.QueryAsync<OutletDataModel>(sql, new { MinAchievement = minAchievementPercentage });
+        return results.Select(r => r.ToOutlet());
     }
 
     /// <inheritdoc />
@@ -388,8 +327,35 @@ public class OutletRepository : IOutletRepository
 
         _logger.LogDebug("Adding new outlet: {OutletName}", outlet.Name);
 
-        _context.Outlets.Add(outlet);
-        await _context.SaveChangesAsync(cancellationToken);
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            INSERT INTO {_tableName} 
+            (Id, Name, Tier, Rank, ChainType, SalesAmount, SalesCurrency, VolumeSoldKg, VolumeTargetKg,
+             AddressStreet, AddressCity, AddressState, AddressZipCode, AddressCountry, 
+             IsActive, LastVisitDate, CreatedAt, UpdatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        await connection.ExecuteAsync(sql, new
+        {
+            Id = outlet.Id.ToString(),
+            outlet.Name,
+            outlet.Tier,
+            outlet.Rank,
+            ChainType = (int)outlet.ChainType,
+            SalesAmount = outlet.Sales.Amount,
+            SalesCurrency = outlet.Sales.Currency,
+            outlet.VolumeSoldKg,
+            outlet.VolumeTargetKg,
+            AddressStreet = outlet.Address.Street,
+            AddressCity = outlet.Address.City,
+            AddressState = outlet.Address.State,
+            AddressZipCode = outlet.Address.PostalCode,
+            AddressCountry = outlet.Address.Country,
+            outlet.IsActive,
+            outlet.LastVisitDate,
+            outlet.CreatedAt,
+            outlet.UpdatedAt
+        });
 
         _logger.LogInformation("Successfully added outlet with ID: {OutletId}", outlet.Id);
         return outlet;
@@ -403,8 +369,39 @@ public class OutletRepository : IOutletRepository
 
         _logger.LogDebug("Updating outlet: {OutletId}", outlet.Id);
 
-        _context.Outlets.Update(outlet);
-        await _context.SaveChangesAsync(cancellationToken);
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            UPDATE {_tableName} SET
+                Name = ?, Tier = ?, Rank = ?, ChainType = ?, SalesAmount = ?, SalesCurrency = ?,
+                VolumeSoldKg = ?, VolumeTargetKg = ?, AddressStreet = ?, AddressCity = ?, AddressState = ?,
+                AddressZipCode = ?, AddressCountry = ?, IsActive = ?, LastVisitDate = ?, UpdatedAt = ?
+            WHERE Id = ?";
+
+        var rowsAffected = await connection.ExecuteAsync(sql, new
+        {
+            outlet.Name,
+            outlet.Tier,
+            outlet.Rank,
+            ChainType = (int)outlet.ChainType,
+            SalesAmount = outlet.Sales.Amount,
+            SalesCurrency = outlet.Sales.Currency,
+            outlet.VolumeSoldKg,
+            outlet.VolumeTargetKg,
+            AddressStreet = outlet.Address.Street,
+            AddressCity = outlet.Address.City,
+            AddressState = outlet.Address.State,
+            AddressZipCode = outlet.Address.PostalCode,
+            AddressCountry = outlet.Address.Country,
+            outlet.IsActive,
+            outlet.LastVisitDate,
+            outlet.UpdatedAt,
+            Id = outlet.Id.ToString()
+        });
+
+        if (rowsAffected == 0)
+        {
+            throw new InvalidOperationException($"Outlet with ID {outlet.Id} not found for update");
+        }
 
         _logger.LogInformation("Successfully updated outlet: {OutletId}", outlet.Id);
         return outlet;
@@ -415,15 +412,16 @@ public class OutletRepository : IOutletRepository
     {
         _logger.LogDebug("Deleting outlet: {OutletId}", id);
 
-        var outlet = await _context.Outlets.FindAsync(new object[] { id }, cancellationToken);
-        if (outlet == null)
+        using var connection = _connectionService.CreateConnection();
+        var sql = $"DELETE FROM {_tableName} WHERE Id = ?";
+
+        var rowsAffected = await connection.ExecuteAsync(sql, new { Id = id.ToString() });
+
+        if (rowsAffected == 0)
         {
             _logger.LogWarning("Outlet not found for deletion: {OutletId}", id);
             return false;
         }
-
-        _context.Outlets.Remove(outlet);
-        await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Successfully deleted outlet: {OutletId}", id);
         return true;
@@ -432,7 +430,10 @@ public class OutletRepository : IOutletRepository
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await _context.Outlets.AnyAsync(o => o.Id == id, cancellationToken);
+        using var connection = _connectionService.CreateConnection();
+        var sql = $"SELECT COUNT(*) FROM {_tableName} WHERE Id = ?";
+        var count = await connection.QuerySingleAsync<int>(sql, new { Id = id.ToString() });
+        return count > 0;
     }
 
     /// <inheritdoc />
@@ -445,43 +446,226 @@ public class OutletRepository : IOutletRepository
     {
         _logger.LogDebug("Checking if outlet exists with name: {Name} in {City}, {State}, ExcludeId: {ExcludeId}", 
             name, city, state, excludeId);
-        
-        var query = _context.Outlets.Where(o => 
-            o.Name == name &&
-            EF.Property<string>(o.Address, "City") == city &&
-            EF.Property<string>(o.Address, "State") == state);
-        
+
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            SELECT COUNT(*) FROM {_tableName} 
+            WHERE Name = ? AND AddressCity = ? AND AddressState = ?";
+
+        object parameters = new { Name = name, City = city, State = state };
+
         if (excludeId.HasValue)
         {
-            query = query.Where(o => o.Id != excludeId.Value);
+            sql += " AND Id != ?";
+            parameters = new { Name = name, City = city, State = state, ExcludeId = excludeId.Value.ToString() };
         }
 
-        return await query.AnyAsync(cancellationToken);
+        var count = await connection.QuerySingleAsync<int>(sql, parameters);
+        return count > 0;
     }
 
     /// <inheritdoc />
     public async Task<IEnumerable<string>> GetDistinctTiersAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Getting distinct tiers");
-        return await _context.Outlets
-            .AsNoTracking()
-            .Where(o => !string.IsNullOrEmpty(o.Tier))
-            .Select(o => o.Tier)
-            .Distinct()
-            .OrderBy(t => t)
-            .ToListAsync(cancellationToken);
+        
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            SELECT DISTINCT Tier 
+            FROM {_tableName} 
+            WHERE Tier IS NOT NULL AND Tier != ''
+            ORDER BY Tier";
+
+        return await connection.QueryAsync<string>(sql);
     }
 
     /// <inheritdoc />
     public async Task<IEnumerable<string>> GetDistinctCitiesAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Getting distinct cities");
-        return await _context.Outlets
-            .AsNoTracking()
-            .Select(o => EF.Property<string>(o.Address, "City"))
-            .Where(c => !string.IsNullOrEmpty(c))
-            .Distinct()
-            .OrderBy(c => c)
-            .ToListAsync(cancellationToken);
+        
+        using var connection = _connectionService.CreateConnection();
+        var sql = $@"
+            SELECT DISTINCT AddressCity 
+            FROM {_tableName} 
+            WHERE AddressCity IS NOT NULL AND AddressCity != ''
+            ORDER BY AddressCity";
+
+        return await connection.QueryAsync<string>(sql);
+    }
+
+    /// <summary>
+    /// Builds WHERE clause and parameters for filtering
+    /// </summary>
+    private (string whereClause, object parameters) BuildWhereClause(
+        string? tier, ChainType? chainType, bool? isActive, string? city, string? state, string? searchTerm,
+        int? minRank, int? maxRank, bool? needsVisit, int maxDaysSinceVisit, bool? highPerforming, decimal minAchievementPercentage)
+    {
+        var conditions = new List<string>();
+        var paramDict = new Dictionary<string, object>();
+
+        if (!string.IsNullOrWhiteSpace(tier))
+        {
+            conditions.Add("Tier = @Tier");
+            paramDict["Tier"] = tier;
+        }
+
+        if (chainType.HasValue)
+        {
+            conditions.Add("ChainType = @ChainType");
+            paramDict["ChainType"] = (int)chainType.Value;
+        }
+
+        if (isActive.HasValue)
+        {
+            conditions.Add("IsActive = @IsActive");
+            paramDict["IsActive"] = isActive.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            conditions.Add("AddressCity = @City");
+            paramDict["City"] = city;
+        }
+
+        if (!string.IsNullOrWhiteSpace(state))
+        {
+            conditions.Add("AddressState = @State");
+            paramDict["State"] = state;
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            conditions.Add("(Name LIKE @SearchTerm OR AddressStreet LIKE @SearchTerm OR AddressCity LIKE @SearchTerm OR AddressState LIKE @SearchTerm)");
+            paramDict["SearchTerm"] = $"%{searchTerm}%";
+        }
+
+        if (minRank.HasValue)
+        {
+            conditions.Add("Rank >= @MinRank");
+            paramDict["MinRank"] = minRank.Value;
+        }
+
+        if (maxRank.HasValue)
+        {
+            conditions.Add("Rank <= @MaxRank");
+            paramDict["MaxRank"] = maxRank.Value;
+        }
+
+        if (needsVisit == true)
+        {
+            var cutoffDate = DateTime.UtcNow.AddDays(-maxDaysSinceVisit);
+            conditions.Add("IsActive = true AND (LastVisitDate IS NULL OR LastVisitDate < @CutoffDate)");
+            paramDict["CutoffDate"] = cutoffDate;
+        }
+
+        if (highPerforming == true)
+        {
+            conditions.Add("IsActive = true AND VolumeTargetKg > 0 AND (VolumeSoldKg / VolumeTargetKg * 100) >= @MinAchievement");
+            paramDict["MinAchievement"] = minAchievementPercentage;
+        }
+
+        var whereClause = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
+        return (whereClause, paramDict);
+    }
+
+    /// <summary>
+    /// Builds ORDER BY clause for sorting
+    /// </summary>
+    private string BuildOrderClause(string sortBy, string sortDirection)
+    {
+        var direction = sortDirection.Equals("desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+
+        var column = sortBy.ToLowerInvariant() switch
+        {
+            "name" => "Name",
+            "tier" => "Tier",
+            "rank" => "Rank",
+            "chaintype" => "ChainType",
+            "sales" => "SalesAmount",
+            "volumesold" => "VolumeSoldKg",
+            "volumetarget" => "VolumeTargetKg",
+            "targetachievement" => "(CASE WHEN VolumeTargetKg > 0 THEN (VolumeSoldKg / VolumeTargetKg * 100) ELSE 0 END)",
+            "lastvisitdate" => "LastVisitDate",
+            "city" => "AddressCity",
+            "state" => "AddressState",
+            "updatedat" => "UpdatedAt",
+            _ => "CreatedAt"
+        };
+
+        return $"ORDER BY {column} {direction}";
+    }
+}
+
+/// <summary>
+/// Data model for mapping Databricks query results to Outlet entities
+/// </summary>
+public class OutletDataModel
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Tier { get; set; } = string.Empty;
+    public int Rank { get; set; }
+    public int ChainType { get; set; }
+    public decimal SalesAmount { get; set; }
+    public string SalesCurrency { get; set; } = string.Empty;
+    public decimal VolumeSoldKg { get; set; }
+    public decimal VolumeTargetKg { get; set; }
+    public string AddressStreet { get; set; } = string.Empty;
+    public string AddressCity { get; set; } = string.Empty;
+    public string AddressState { get; set; } = string.Empty;
+    public string AddressZipCode { get; set; } = string.Empty;
+    public string AddressCountry { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public DateTime? LastVisitDate { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Converts the data model to an Outlet entity
+    /// </summary>
+    /// <returns>Outlet entity</returns>
+    public Outlet ToOutlet()
+    {
+        var address = new Address(AddressStreet, AddressCity, AddressState, AddressZipCode, AddressCountry);
+        
+        // Create outlet with basic constructor
+        var outlet = new Outlet(Name, Tier, Rank, (ChainType)ChainType, address);
+        
+        // Use reflection to set private fields that can't be set through constructor
+        var outletType = typeof(Outlet);
+        
+        // Set Id
+        var idProperty = outletType.GetProperty("Id");
+        idProperty?.SetValue(outlet, Guid.Parse(Id));
+        
+        // Set Sales
+        var money = new Money(SalesAmount, SalesCurrency);
+        outlet.UpdateSales(money, "system");
+        
+        // Set volume data
+        outlet.UpdateVolumeSold(VolumeSoldKg, "system");
+        outlet.UpdateVolumeTarget(VolumeTargetKg, "system");
+        
+        // Set active status
+        if (!IsActive)
+        {
+            outlet.Deactivate("system");
+        }
+        
+        // Set visit date
+        if (LastVisitDate.HasValue)
+        {
+            outlet.RecordVisit(LastVisitDate.Value, "system");
+        }
+        
+        // Set audit fields using reflection
+        var createdAtField = outletType.BaseType?.GetProperty("CreatedAt");
+        var updatedAtField = outletType.BaseType?.GetProperty("UpdatedAt");
+        
+        createdAtField?.SetValue(outlet, CreatedAt);
+        updatedAtField?.SetValue(outlet, UpdatedAt);
+        
+        return outlet;
     }
 }

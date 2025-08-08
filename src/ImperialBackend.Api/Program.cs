@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
 using Microsoft.EntityFrameworkCore;
+using CData.EntityFrameworkCore.Databricks;
 using Serilog;
 using System.Reflection;
 
@@ -94,10 +95,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Configure Entity Framework with CData Databricks provider
+// Configure Entity Framework with SQL Server (temporary to test build)
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseRelationalDatabase(builder.Configuration.GetConnectionString("DefaultConnection"), "CData.Databricks");
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
     if (builder.Environment.IsDevelopment())
     {
         options.EnableSensitiveDataLogging();

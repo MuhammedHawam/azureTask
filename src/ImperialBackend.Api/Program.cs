@@ -1,18 +1,17 @@
-using System.Reflection;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using ImperialBackend.Api.Middleware;
 using ImperialBackend.Application.Common.Mappings;
 using ImperialBackend.Application.Outlets.Commands.CreateOutlet;
 using ImperialBackend.Domain.Interfaces;
 using ImperialBackend.Infrastructure.Data;
 using ImperialBackend.Infrastructure.Repositories;
-using FluentValidation;
-using FluentValidation.AspNetCore;
-using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,11 +45,11 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Imperial Backend API",
         Version = "v1",
-        Description = "A comprehensive backend API for managing retail outlets with Azure AD authentication",
+        Description = "A comprehensive backend API for managing retail outlets with Azure AD authentication and Databricks integration via Entity Framework Core",
         Contact = new OpenApiContact
         {
-            Name = "Development Team",
-            Email = "dev@company.com"
+            Name = "Imperial Backend Team",
+            Email = "support@imperialbackend.com"
         }
     });
 
@@ -62,13 +61,15 @@ builder.Services.AddSwaggerGen(c =>
         c.IncludeXmlComments(xmlPath);
     }
 
-    // Add Azure AD authentication to Swagger
+    // Add JWT Authentication to Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Description = "Enter your Azure AD JWT token"
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT"
     });
 
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -93,10 +94,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Configure Entity Framework
+// Configure Entity Framework with CData Databricks provider
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.UseRelationalDatabase(builder.Configuration.GetConnectionString("DefaultConnection"), "CData.Databricks");
     if (builder.Environment.IsDevelopment())
     {
         options.EnableSensitiveDataLogging();
@@ -135,16 +136,12 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add health checks
+// Add health checks for Entity Framework
 builder.Services.AddHealthChecks()
-    .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!);
+    .AddDbContextCheck<ApplicationDbContext>("databricks");
 
-// Configure API versioning
-builder.Services.AddApiVersioning(options =>
-{
-    options.AssumeDefaultVersionWhenUnspecified = true;
-    options.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
-});
+// Add API versioning
+builder.Services.AddApiVersioning();
 
 var app = builder.Build();
 
@@ -155,7 +152,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Imperial Backend API v1");
-        c.RoutePrefix = "swagger";
+        c.RoutePrefix = string.Empty; // Set Swagger UI at the app's root
         c.DisplayRequestDuration();
         c.EnableDeepLinking();
         c.EnableFilter();
@@ -163,84 +160,42 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Security headers
-app.UseHsts();
+// Security headers middleware
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
+
 app.UseHttpsRedirection();
 
-// CORS
+// Enable CORS
 app.UseCors("FrontendPolicy");
 
-// Request logging middleware
+// Add request/response logging middleware
 app.UseMiddleware<RequestLoggingMiddleware>();
 
 // Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Controllers
-app.MapControllers();
-
 // Health checks
 app.MapHealthChecks("/health");
 
-// Global exception handling
-app.UseExceptionHandler(errorApp =>
-{
-    errorApp.Run(async context =>
-    {
-        context.Response.StatusCode = 500;
-        context.Response.ContentType = "application/json";
-
-        var error = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
-        if (error != null)
-        {
-            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogError(error.Error, "Unhandled exception occurred");
-
-            await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
-            {
-                error = "An internal server error occurred",
-                traceId = System.Diagnostics.Activity.Current?.Id ?? context.TraceIdentifier
-            }));
-        }
-    });
-});
-
-// Database migration and seeding
-using (var scope = app.Services.CreateScope())
-{
-    try
-    {
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
-        if (app.Environment.IsDevelopment())
-        {
-            await context.Database.EnsureCreatedAsync();
-        }
-        else
-        {
-            await context.Database.MigrateAsync();
-        }
-
-        Log.Information("Database migration completed successfully");
-    }
-    catch (Exception ex)
-    {
-        Log.Fatal(ex, "An error occurred while migrating the database");
-        throw;
-    }
-}
-
-Log.Information("Imperial Backend API starting up...");
+// API Controllers
+app.MapControllers();
 
 try
 {
-    await app.RunAsync();
-    Log.Information("Imperial Backend API shut down gracefully");
+    Log.Information("Imperial Backend API with Entity Framework Core + Databricks starting up...");
+    app.Run();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Imperial Backend API terminated unexpectedly");
+    Log.Fatal(ex, "Application terminated unexpectedly");
 }
 finally
 {

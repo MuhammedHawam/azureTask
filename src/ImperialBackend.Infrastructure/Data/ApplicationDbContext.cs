@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ImperialBackend.Infrastructure.Data;
 
 /// <summary>
-/// Application database context
+/// Application database context for Databricks using CData EF Core provider
 /// </summary>
 public class ApplicationDbContext : DbContext
 {

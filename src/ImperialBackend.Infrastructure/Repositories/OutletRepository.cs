@@ -4,12 +4,11 @@ using ImperialBackend.Domain.Interfaces;
 using ImperialBackend.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Linq.Expressions;
 
 namespace ImperialBackend.Infrastructure.Repositories;
 
 /// <summary>
-/// Entity Framework implementation of IOutletRepository with optimized queries
+/// Entity Framework Core implementation of IOutletRepository optimized for Databricks
 /// </summary>
 public class OutletRepository : IOutletRepository
 {

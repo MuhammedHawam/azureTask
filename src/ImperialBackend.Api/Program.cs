@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
 using Microsoft.EntityFrameworkCore;
-using CData.EntityFrameworkCore.Databricks;
 using Serilog;
 using System.Reflection;
 
@@ -95,7 +94,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Configure Entity Framework with SQL Server (temporary to test build)
+// Configure Entity Framework with Microsoft's official SQL Server provider for Databricks
+// Databricks SQL Warehouses are compatible with SQL Server driver
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));

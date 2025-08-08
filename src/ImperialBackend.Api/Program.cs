@@ -8,6 +8,7 @@ using ImperialBackend.Infrastructure.Data;
 using ImperialBackend.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -45,7 +46,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Imperial Backend API",
         Version = "v1",
-        Description = "A comprehensive backend API for managing retail outlets with Azure AD authentication and Databricks integration via Entity Framework Core",
+        Description = "API for managing outlets and business operations with SSO token validation for 360 Salesforce integration",
         Contact = new OpenApiContact
         {
             Name = "Imperial Backend Team",
@@ -88,9 +89,27 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Configure Azure AD authentication
+// Configure JWT authentication for SSO validation
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+    .AddJwtBearer(options =>
+    {
+        var secretKey = builder.Configuration["JWT:SecretKey"];
+        if (!string.IsNullOrWhiteSpace(secretKey))
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(secretKey)),
+                ValidateIssuer = true,
+                ValidIssuer = builder.Configuration["JWT:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = builder.Configuration["JWT:Audience"],
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(5),
+                RequireExpirationTime = true
+            };
+        }
+    });
 
 builder.Services.AddAuthorization();
 

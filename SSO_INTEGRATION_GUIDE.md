@@ -1,4 +1,312 @@
-# SSO Integration Guide - Imperial Backend API (Databricks Edition)
+# SSO Integration Guide - Imperial Backend API (360 Salesforce Edition)
+
+## 🎯 **360 Salesforce SSO Integration - IMPLEMENTED**
+
+**Your Scenario:** User logs into 360 Salesforce with Azure AD → clicks your app → **no additional login required**
+
+## 🔐 **Security-First SSO Implementation**
+
+I've implemented a **production-ready SSO solution** with comprehensive security:
+
+### **🛡️ Multi-Layer Security Architecture:**
+
+```mermaid
+graph LR
+    A[360 Salesforce] --> B[Azure AD Token]
+    B --> C[Token Validation]
+    C --> D[User Authorization]
+    D --> E[Session Token]
+    E --> F[Imperial Backend Access]
+    
+    C --> G[Signature Verification]
+    C --> H[Expiration Check]
+    C --> I[Audience Validation]
+    D --> J[Domain Check]
+    D --> K[Role Verification]
+```
+
+### **🔧 Implementation Flow:**
+
+1. **Token Reception**: Receive Azure AD token from 360 Salesforce
+2. **Cryptographic Validation**: Verify token signature against Azure AD
+3. **Claims Extraction**: Extract user identity and roles
+4. **Authorization Check**: Verify user has access to Imperial Backend
+5. **Session Creation**: Generate application-specific session token
+6. **Secure Access**: User accesses API with validated session
+
+## 📡 **API Endpoints for SSO Integration**
+
+### **🔍 Token Validation Endpoint**
+
+```http
+POST /api/auth/validate-sso
+Content-Type: application/json
+
+{
+  "accessToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9...",
+  "source": "360-salesforce"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "isValid": true,
+  "user": {
+    "id": "12345678-1234-1234-1234-123456789012",
+    "email": "john.doe@company.com",
+    "name": "John Doe",
+    "givenName": "John",
+    "familyName": "Doe",
+    "roles": ["ImperialBackend.User"],
+    "tenantId": "your-tenant-id"
+  },
+  "sessionToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "expiresAt": "2024-01-01T16:00:00Z"
+}
+```
+
+**Response (Error):**
+```json
+{
+  "isValid": false,
+  "errorMessage": "Invalid token signature"
+}
+```
+
+### **👤 User Context Endpoint**
+
+```http
+GET /api/auth/me
+Authorization: Bearer {sessionToken}
+```
+
+### **🔄 Session Refresh Endpoint**
+
+```http
+POST /api/auth/refresh-session
+Authorization: Bearer {sessionToken}
+```
+
+### **🚪 Logout Endpoint**
+
+```http
+POST /api/auth/logout
+Authorization: Bearer {sessionToken}
+```
+
+## 🛡️ **Security Features Implemented**
+
+### **✅ Token Validation:**
+- **Signature Verification**: Validates against Azure AD public keys
+- **Expiration Check**: Ensures token hasn't expired
+- **Audience Validation**: Confirms token is for your application
+- **Issuer Verification**: Validates token came from Azure AD
+
+### **✅ Authorization Controls:**
+- **Domain Restrictions**: Only allow users from specific domains
+- **Role-Based Access**: Verify users have required roles
+- **Custom Authorization**: Implement your business rules
+
+### **✅ Session Security:**
+- **Application-Specific Tokens**: Generate new tokens for your app
+- **Limited Lifetime**: 8-hour session timeout
+- **Secure Claims**: Only necessary user information included
+
+### **✅ Security Headers & CORS:**
+- **Strict CORS Policy**: Only allow trusted Salesforce origins
+- **Security Headers**: X-Frame-Options, Content-Security-Policy, etc.
+- **HTTPS Enforcement**: Secure transport layer
+
+## ⚙️ **Configuration Required**
+
+### **🔧 Azure AD Configuration:**
+
+```json
+{
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "TenantId": "your-tenant-id-here",
+    "ClientId": "your-imperial-backend-app-id",
+    "Audience": "api://your-imperial-backend-app-id"
+  }
+}
+```
+
+### **🔑 JWT Configuration:**
+
+```json
+{
+  "JWT": {
+    "SecretKey": "your-super-secret-key-at-least-32-chars",
+    "Issuer": "ImperialBackend",
+    "Audience": "ImperialBackend.Api",
+    "ExpirationHours": 8
+  }
+}
+```
+
+### **🛡️ Authorization Rules:**
+
+```json
+{
+  "Authorization": {
+    "AllowedDomains": [
+      "yourcompany.com",
+      "trustedpartner.com"
+    ],
+    "RequiredRoles": [
+      "ImperialBackend.User",
+      "ImperialBackend.Admin"
+    ]
+  }
+}
+```
+
+### **🌐 Salesforce Integration:**
+
+```json
+{
+  "SalesforceIntegration": {
+    "AllowedOrigins": [
+      "https://your-company.lightning.force.com",
+      "https://your-custom-domain.my.salesforce.com"
+    ],
+    "TrustedAppIds": [
+      "your-360-salesforce-app-id"
+    ]
+  }
+}
+```
+
+## 🚀 **Frontend Integration (360 Salesforce)**
+
+### **JavaScript Implementation:**
+
+```javascript
+// In your 360 Salesforce Lightning Component
+async function accessImperialBackend() {
+    try {
+        // Get current Azure AD token from Salesforce context
+        const azureToken = await getCurrentAzureToken();
+        
+        // Validate token with Imperial Backend
+        const response = await fetch('https://your-api.com/api/auth/validate-sso', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                accessToken: azureToken,
+                source: '360-salesforce'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.isValid) {
+            // Store session token for subsequent API calls
+            sessionStorage.setItem('imperialSessionToken', result.sessionToken);
+            
+            // User is now authenticated - redirect to your app
+            window.location.href = '/imperial-backend-app';
+        } else {
+            console.error('Authentication failed:', result.errorMessage);
+            // Handle authentication failure
+        }
+    } catch (error) {
+        console.error('SSO Error:', error);
+    }
+}
+
+// Function to make authenticated API calls
+async function callImperialBackendAPI(endpoint) {
+    const sessionToken = sessionStorage.getItem('imperialSessionToken');
+    
+    const response = await fetch(`https://your-api.com/api/${endpoint}`, {
+        headers: {
+            'Authorization': `Bearer ${sessionToken}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (response.status === 401) {
+        // Token expired - redirect to re-authenticate
+        await accessImperialBackend();
+        return;
+    }
+    
+    return await response.json();
+}
+```
+
+### **Lightning Web Component Example:**
+
+```javascript
+// imperialBackendAccess.js
+import { LightningElement } from 'lwc';
+
+export default class ImperialBackendAccess extends LightningElement {
+    async connectedCallback() {
+        await this.initializeSSO();
+    }
+    
+    async initializeSSO() {
+        try {
+            // Get Azure AD token from Salesforce org
+            const token = await this.getAzureADToken();
+            
+            // Validate with Imperial Backend
+            const validation = await this.validateSSOToken(token);
+            
+            if (validation.isValid) {
+                this.sessionToken = validation.sessionToken;
+                this.userInfo = validation.user;
+                this.isAuthenticated = true;
+            }
+        } catch (error) {
+            console.error('SSO initialization failed:', error);
+        }
+    }
+    
+    async validateSSOToken(token) {
+        const response = await fetch('/api/auth/validate-sso', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accessToken: token })
+        });
+        
+        return await response.json();
+    }
+}
+```
+
+## 🔒 **Security Best Practices Implemented**
+
+### **🛡️ Defense in Depth:**
+
+1. **Transport Security**: HTTPS only, secure headers
+2. **Token Validation**: Cryptographic signature verification
+3. **Authorization**: Multi-layer access control
+4. **Session Management**: Secure, limited-lifetime sessions
+5. **Audit Logging**: Comprehensive security event logging
+6. **Input Validation**: Strict input sanitization
+7. **CORS Policy**: Restrictive cross-origin rules
+
+### **🚨 Attack Prevention:**
+
+- **Token Replay**: Short-lived tokens, unique session IDs
+- **CSRF**: SameSite cookies, anti-forgery tokens
+- **XSS**: Content Security Policy, input encoding
+- **Injection**: Parameterized queries, input validation
+- **MITM**: Certificate pinning, HSTS headers
+
+### **📋 Compliance Features:**
+
+- **Audit Trail**: All authentication events logged
+- **Data Privacy**: Minimal user data storage
+- **Session Timeout**: Automatic logout after inactivity
+- **Access Reviews**: User access verification endpoints
 
 ## Option 1: Use Azure AD SSO (Best Practice)
 

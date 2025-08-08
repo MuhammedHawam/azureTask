@@ -1,20 +1,17 @@
-using System.Reflection;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using ImperialBackend.Api.Middleware;
 using ImperialBackend.Application.Common.Mappings;
 using ImperialBackend.Application.Outlets.Commands.CreateOutlet;
 using ImperialBackend.Domain.Interfaces;
-using ImperialBackend.Infrastructure.Configuration;
-using ImperialBackend.Infrastructure.Services;
+using ImperialBackend.Infrastructure.Data;
 using ImperialBackend.Infrastructure.Repositories;
-using ImperialBackend.Infrastructure.HealthChecks;
-using FluentValidation;
-using FluentValidation.AspNetCore;
-using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,7 +45,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Imperial Backend API",
         Version = "v1",
-        Description = "A comprehensive backend API for managing retail outlets with Azure AD authentication and Databricks integration",
+        Description = "A comprehensive backend API for managing retail outlets with Azure AD authentication and Databricks integration via Entity Framework Core",
         Contact = new OpenApiContact
         {
             Name = "Imperial Backend Team",
@@ -97,12 +94,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Configure Databricks
-builder.Services.Configure<DatabricksOptions>(
-    builder.Configuration.GetSection(DatabricksOptions.SectionName));
-
-// Register Databricks services
-builder.Services.AddSingleton<IDatabricksConnectionService, DatabricksConnectionService>();
+// Configure Entity Framework with CData Databricks provider
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    options.UseRelationalDatabase(builder.Configuration.GetConnectionString("DefaultConnection"), "CData.Databricks");
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.EnableDetailedErrors();
+    }
+});
 
 // Configure MediatR
 builder.Services.AddMediatR(cfg =>
@@ -135,9 +136,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add health checks for Databricks
+// Add health checks for Entity Framework
 builder.Services.AddHealthChecks()
-    .AddCheck<DatabricksHealthCheck>("databricks");
+    .AddDbContextCheck<ApplicationDbContext>("databricks");
 
 // Add API versioning
 builder.Services.AddApiVersioning();
@@ -189,7 +190,7 @@ app.MapControllers();
 
 try
 {
-    Log.Information("Imperial Backend API starting up...");
+    Log.Information("Imperial Backend API with Entity Framework Core + Databricks starting up...");
     app.Run();
 }
 catch (Exception ex)

@@ -22,73 +22,180 @@ Since both apps are under Azure AD authentication, leverage OpenID Connect and S
 - Configure App X as an Azure AD app registration under the same tenant as Salesforce app.
 - App X receives token from frontend (either via redirect from Salesforce or iframe message)
 
-## 🔥 **NEW: Azure Databricks Integration**
+## 🔥 **NEW: Azure Databricks Integration Options**
 
-The Imperial Backend API has been upgraded to use **Azure Databricks** as the data source instead of traditional SQL Server. This provides:
+You asked a great question: **"Can LINQ queries or EF queries be done with Databricks instead of Dapper?"**
 
-### ✅ **Databricks Benefits:**
-- **Big Data Processing**: Handle large datasets efficiently
-- **Real-time Analytics**: Query data with Spark SQL performance
-- **Unified Analytics**: Single platform for data engineering and analytics
-- **Scalability**: Auto-scaling compute resources
-- **Cost Optimization**: Pay only for compute resources used
+**Answer: YES! You have multiple options:**
 
-### 🔧 **Technical Implementation:**
-- **Connection**: ODBC driver with Databricks SQL Warehouse
-- **Query Engine**: Dapper ORM with raw SQL queries optimized for Spark SQL
-- **Performance**: Database-level filtering, sorting, and pagination
-- **Health Monitoring**: Built-in health checks for Databricks connectivity
+### ✅ **Option 1: Entity Framework Core + LINQ (Recommended)**
 
-### ⚙️ **Configuration Required:**
+**Pros:**
+- Keep all your existing LINQ queries
+- Full Entity Framework Core functionality
+- Familiar development experience
+- Strong typing and IntelliSense
+- Automatic query optimization
 
-Update your `appsettings.json` with Databricks connection details:
+**Implementation:**
+```csharp
+// Using CData Databricks Entity Framework Core Provider
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    options.UseCData("Databricks", connectionString);
+    // OR alternatively:
+    // options.UseProvider("CData.Databricks", connectionString);
+});
 
+// Your existing LINQ queries work exactly the same:
+var outlets = await context.Outlets
+    .Where(o => o.IsActive && o.Tier == "Premium")
+    .OrderBy(o => o.Name)
+    .ToListAsync();
+```
+
+**Package Required:**
+```xml
+<PackageReference Include="CData.Databricks.EntityFrameworkCore" Version="24.0.9175" />
+```
+
+### ✅ **Option 2: Dapper + Raw SQL (What we implemented)**
+
+**Pros:**
+- Full control over SQL queries
+- Better performance for complex queries
+- Direct Spark SQL optimization
+- Lower memory footprint
+
+**Implementation:**
+```csharp
+// Raw SQL with Dapper
+var sql = @"
+    SELECT * FROM outlets 
+    WHERE IsActive = true AND Tier = @tier 
+    ORDER BY Name";
+
+var outlets = await connection.QueryAsync<OutletDataModel>(sql, new { tier = "Premium" });
+```
+
+### ✅ **Option 3: Hybrid Approach (Best of Both Worlds)**
+
+**Use Entity Framework for:**
+- Simple CRUD operations
+- Standard filtering and sorting
+- Relationship navigation
+- Development productivity
+
+**Use Dapper for:**
+- Complex analytics queries
+- Custom Spark SQL optimizations
+- Bulk operations
+- Performance-critical queries
+
+### 📊 **Comparison Table:**
+
+| Feature | Entity Framework + LINQ | Dapper + Raw SQL |
+|---------|-------------------------|------------------|
+| **Development Speed** | ✅ Fast (familiar LINQ) | ⚠️ Slower (write SQL) |
+| **Query Performance** | ⚠️ Good (auto-optimized) | ✅ Excellent (hand-tuned) |
+| **Type Safety** | ✅ Full compile-time | ⚠️ Runtime only |
+| **Complex Queries** | ⚠️ Limited by LINQ | ✅ Full Spark SQL |
+| **Maintenance** | ✅ Easy to maintain | ⚠️ More complex |
+| **Learning Curve** | ✅ Minimal | ⚠️ Requires SQL knowledge |
+
+### 🔧 **Technical Implementation Details:**
+
+#### **Entity Framework Core Approach:**
+```csharp
+// Your existing repository methods work unchanged:
+public async Task<IEnumerable<Outlet>> GetAllAsync(
+    string? tier = null,
+    ChainType? chainType = null,
+    bool? isActive = null,
+    // ... other parameters
+    CancellationToken cancellationToken = default)
+{
+    var query = _context.Outlets.AsNoTracking();
+
+    // All your existing LINQ filters work:
+    if (!string.IsNullOrWhiteSpace(tier))
+        query = query.Where(o => o.Tier == tier);
+
+    if (chainType.HasValue)
+        query = query.Where(o => o.ChainType == chainType.Value);
+
+    if (isActive.HasValue)
+        query = query.Where(o => o.IsActive == isActive.Value);
+
+    // Sorting and pagination work exactly the same:
+    query = query.OrderBy(o => o.Name).Skip(skip).Take(pageSize);
+
+    return await query.ToListAsync(cancellationToken);
+}
+```
+
+#### **Dapper Approach (Current Implementation):**
+```csharp
+// Direct SQL control for Spark SQL optimization:
+var sql = $@"
+    SELECT * FROM {_tableName} 
+    WHERE IsActive = @isActive 
+      AND Tier = @tier
+      AND (VolumeSoldKg / VolumeTargetKg * 100) >= @minAchievement
+    ORDER BY (VolumeSoldKg / VolumeTargetKg) DESC
+    LIMIT @pageSize OFFSET @skip";
+
+var results = await connection.QueryAsync<OutletDataModel>(sql, parameters);
+```
+
+### ⚙️ **Configuration Options:**
+
+#### **Entity Framework Core Configuration:**
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Driver={Simba Spark ODBC Driver};Host=your-databricks-workspace.cloud.databricks.com;Port=443;HTTPPath=/sql/1.0/warehouses/your-warehouse-id;SSL=1;ThriftTransport=2;AuthMech=3;UID=token;PWD=your-databricks-token;"
-  },
-  "Databricks": {
-    "ServerHostname": "your-databricks-workspace.cloud.databricks.com",
-    "HTTPPath": "/sql/1.0/warehouses/your-warehouse-id",
-    "AccessToken": "your-databricks-token",
-    "Catalog": "your-catalog-name",
-    "Schema": "your-schema-name"
+    "DefaultConnection": "Server=your-workspace.databricks.com;HTTPPath=/sql/1.0/warehouses/your-id;AuthScheme=Token;Token=your-token;UseSSL=True;Port=443;"
   }
 }
 ```
 
-### 📋 **Required Setup:**
-1. **Databricks Workspace**: Create or use existing Azure Databricks workspace
-2. **SQL Warehouse**: Set up a SQL Warehouse for query execution
-3. **Access Token**: Generate personal access token or use service principal
-4. **Catalog & Schema**: Ensure your data is organized in Unity Catalog
-5. **Table Structure**: Create `outlets` table with required schema
-
-### 🗄️ **Expected Table Schema:**
-
-```sql
-CREATE TABLE your_catalog.your_schema.outlets (
-    Id STRING,
-    Name STRING,
-    Tier STRING,
-    Rank INT,
-    ChainType INT,
-    SalesAmount DECIMAL(18,2),
-    SalesCurrency STRING,
-    VolumeSoldKg DECIMAL(18,2),
-    VolumeTargetKg DECIMAL(18,2),
-    AddressStreet STRING,
-    AddressCity STRING,
-    AddressState STRING,
-    AddressZipCode STRING,
-    AddressCountry STRING,
-    IsActive BOOLEAN,
-    LastVisitDate TIMESTAMP,
-    CreatedAt TIMESTAMP,
-    UpdatedAt TIMESTAMP
-);
+#### **Dapper Configuration:**
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Driver={Simba Spark ODBC Driver};Host=your-workspace.databricks.com;Port=443;HTTPPath=/sql/1.0/warehouses/your-id;SSL=1;ThriftTransport=2;AuthMech=3;UID=token;PWD=your-token;"
+  }
+}
 ```
+
+### 🚀 **My Recommendation:**
+
+**Start with Entity Framework Core + LINQ** because:
+
+1. **Zero Code Changes**: Your existing LINQ queries work immediately
+2. **Faster Development**: No need to rewrite queries as SQL
+3. **Better Maintainability**: Type-safe, compile-time checked queries
+4. **Gradual Migration**: You can always add Dapper for specific performance-critical queries later
+
+**Switch to Dapper only if:**
+- You need complex Spark SQL features not supported by LINQ
+- Performance is critical and you want hand-tuned queries
+- You're comfortable writing and maintaining raw SQL
+
+### 📋 **Required Setup for Entity Framework Approach:**
+
+1. **Install CData Provider:**
+   ```bash
+   dotnet add package CData.Databricks.EntityFrameworkCore
+   ```
+
+2. **Update Program.cs:**
+   ```csharp
+   builder.Services.AddDbContext<ApplicationDbContext>(options =>
+       options.UseCData("Databricks", connectionString));
+   ```
+
+3. **Your existing LINQ queries work unchanged!**
 
 ## API Integration with Salesforce Frontend
 
@@ -209,11 +316,18 @@ Returns health status including Databricks connection state.
 ### Performance Optimizations
 
 🚀 **Databricks-Specific Optimizations:**
-- **Spark SQL Queries**: All filtering and sorting executed at Databricks level
-- **Columnar Storage**: Efficient data retrieval with Delta Lake format
-- **Caching**: Databricks caches frequently accessed data automatically
-- **Parallel Processing**: Queries leverage Spark's distributed computing
-- **Adaptive Query Execution**: Spark optimizes queries based on data statistics
+
+**With Entity Framework Core:**
+- **LINQ Translation**: EF Core translates LINQ to optimized Spark SQL
+- **AsNoTracking()**: Read-only queries for better performance
+- **Compiled Queries**: Pre-compiled LINQ for repeated queries
+- **Query Splitting**: Automatic optimization for complex joins
+
+**With Dapper:**
+- **Raw Spark SQL**: Hand-tuned queries for maximum performance
+- **Columnar Storage**: Direct Delta Lake optimizations
+- **Custom Indexing**: Leverage Databricks-specific indexes
+- **Batch Operations**: Bulk inserts and updates
 
 ### CORS Configuration
 

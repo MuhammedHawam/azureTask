@@ -94,10 +94,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Configure Entity Framework with CData Databricks provider
+// Configure Entity Framework with Microsoft's official SQL Server provider for Databricks
+// Databricks SQL Warehouses are compatible with SQL Server driver
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseRelationalDatabase(builder.Configuration.GetConnectionString("DefaultConnection"), "CData.Databricks");
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
     if (builder.Environment.IsDevelopment())
     {
         options.EnableSensitiveDataLogging();

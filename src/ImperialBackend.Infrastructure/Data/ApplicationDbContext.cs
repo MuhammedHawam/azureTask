@@ -1,8 +1,6 @@
 using ImperialBackend.Domain.Entities;
 using ImperialBackend.Infrastructure.Data.Configurations;
-using ImperialBackend.Infrastructure.Options;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace ImperialBackend.Infrastructure.Data;
 
@@ -11,16 +9,12 @@ namespace ImperialBackend.Infrastructure.Data;
 /// </summary>
 public class ApplicationDbContext : DbContext
 {
-    private readonly DatabricksSettings _databricksSettings;
-
     /// <summary>
     /// Initializes a new instance of the ApplicationDbContext class
     /// </summary>
     /// <param name="options">The database context options</param>
-    /// <param name="databricksOptions">The Databricks settings</param>
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, IOptions<DatabricksSettings> databricksOptions) : base(options)
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
-        _databricksSettings = databricksOptions?.Value ?? new DatabricksSettings();
     }
 
     /// <summary>
@@ -41,17 +35,6 @@ public class ApplicationDbContext : DbContext
 
         // Configure specific entities
         modelBuilder.ApplyConfiguration(new OutletConfiguration());
-
-        // If dynamic mapping is provided, set default schema and table for Outlets
-        if (!string.IsNullOrWhiteSpace(_databricksSettings.Schema))
-        {
-            modelBuilder.HasDefaultSchema(_databricksSettings.Schema);
-        }
-
-        if (!string.IsNullOrWhiteSpace(_databricksSettings.OutletsTable))
-        {
-            modelBuilder.Entity<Outlet>().ToTable(_databricksSettings.OutletsTable!, _databricksSettings.Schema);
-        }
     }
 
     /// <summary>

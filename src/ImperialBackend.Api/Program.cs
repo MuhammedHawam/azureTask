@@ -113,9 +113,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Bind Databricks settings
-builder.Services.Configure<ImperialBackend.Infrastructure.Options.DatabricksSettings>(builder.Configuration.GetSection("Databricks"));
-
 // Configure Entity Framework with SQL Server provider targeting Databricks SQL Warehouse
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {

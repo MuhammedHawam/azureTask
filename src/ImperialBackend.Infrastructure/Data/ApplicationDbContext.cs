@@ -42,10 +42,16 @@ public class ApplicationDbContext : DbContext
         // Configure specific entities
         modelBuilder.ApplyConfiguration(new OutletConfiguration());
 
-        // Override table mapping for Outlet using Databricks catalog/schema/table settings
-        var schema = _databricksSettings.Schema ?? "mart_it";
-        var table = _databricksSettings.OutletsTable ?? "factoutlet";
-        modelBuilder.Entity<Outlet>().ToTable(table, schema);
+        // If dynamic mapping is provided, set default schema and table for Outlets
+        if (!string.IsNullOrWhiteSpace(_databricksSettings.Schema))
+        {
+            modelBuilder.HasDefaultSchema(_databricksSettings.Schema);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_databricksSettings.OutletsTable))
+        {
+            modelBuilder.Entity<Outlet>().ToTable(_databricksSettings.OutletsTable!, _databricksSettings.Schema);
+        }
     }
 
     /// <summary>

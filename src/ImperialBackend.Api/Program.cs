@@ -143,8 +143,7 @@ builder.Services.AddAutoMapper(typeof(MappingProfile));
 // Register repositories
 builder.Services.AddScoped<IOutletRepository, OutletRepository>();
 
-// Register services
-builder.Services.AddScoped<IDatabricksQueryService, ImperialBackend.Infrastructure.Services.DatabricksQueryService>();
+
 
 // Configure CORS for frontend integration
 builder.Services.AddCors(options =>

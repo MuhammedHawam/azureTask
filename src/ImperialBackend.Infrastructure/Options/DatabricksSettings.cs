@@ -8,4 +8,5 @@ public class DatabricksSettings
     public string? Catalog { get; set; }
     public string? Schema { get; set; }
     public string? OutletsTable { get; set; }
+    public bool UseAdoForOutlets { get; set; } = false;
 }

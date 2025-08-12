@@ -17,7 +17,7 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
     /// <param name="builder">The entity type builder</param>
     public void Configure(EntityTypeBuilder<Outlet> builder)
     {
-        builder.ToTable("Outlets");
+        builder.ToTable("factoutlet", "mart_it");
 
         // Primary key
         builder.HasKey(o => o.Id);

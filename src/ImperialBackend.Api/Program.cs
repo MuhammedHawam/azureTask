@@ -113,8 +113,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Configure Entity Framework with Microsoft's official SQL Server provider for Databricks
-// Databricks SQL Warehouses are compatible with SQL Server driver
+// Bind Databricks settings
+builder.Services.Configure<ImperialBackend.Infrastructure.Options.DatabricksSettings>(builder.Configuration.GetSection("Databricks"));
+
+// Configure Entity Framework with SQL Server provider targeting Databricks SQL Warehouse
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));

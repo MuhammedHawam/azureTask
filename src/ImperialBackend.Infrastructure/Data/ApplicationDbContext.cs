@@ -1,6 +1,8 @@
 using ImperialBackend.Domain.Entities;
 using ImperialBackend.Infrastructure.Data.Configurations;
+using ImperialBackend.Infrastructure.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace ImperialBackend.Infrastructure.Data;
 
@@ -9,12 +11,16 @@ namespace ImperialBackend.Infrastructure.Data;
 /// </summary>
 public class ApplicationDbContext : DbContext
 {
+    private readonly DatabricksSettings _databricksSettings;
+
     /// <summary>
     /// Initializes a new instance of the ApplicationDbContext class
     /// </summary>
     /// <param name="options">The database context options</param>
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+    /// <param name="databricksOptions">The Databricks settings</param>
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, IOptions<DatabricksSettings> databricksOptions) : base(options)
     {
+        _databricksSettings = databricksOptions?.Value ?? new DatabricksSettings();
     }
 
     /// <summary>
@@ -35,6 +41,11 @@ public class ApplicationDbContext : DbContext
 
         // Configure specific entities
         modelBuilder.ApplyConfiguration(new OutletConfiguration());
+
+        // Override table mapping for Outlet using Databricks catalog/schema/table settings
+        var schema = _databricksSettings.Schema ?? "mart_it";
+        var table = _databricksSettings.OutletsTable ?? "factoutlet";
+        modelBuilder.Entity<Outlet>().ToTable(table, schema);
     }
 
     /// <summary>

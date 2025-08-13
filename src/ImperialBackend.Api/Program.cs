@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using CData.EntityFrameworkCore.Databricks;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using System.Reflection;
@@ -116,9 +117,8 @@ builder.Services.AddAuthorization();
 // Configure Entity Framework with SQL Server provider targeting Databricks SQL Warehouse
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sql => sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)
+    options.UseDatabricks(
+        builder.Configuration.GetConnectionString("DefaultConnection")
     );
     if (builder.Environment.IsDevelopment())
     {

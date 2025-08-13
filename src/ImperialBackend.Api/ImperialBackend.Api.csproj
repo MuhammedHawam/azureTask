@@ -27,12 +27,22 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning" Version="5.1.0" />
     <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="8.0.2" />
     <PackageReference Include="CData.EntityFrameworkCore.Databricks" Version="24.0.0.40" />
-    <PackageReference Include="System.Data.CData.Databricks" Version="24.0.0.40" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ImperialBackend.Application\ImperialBackend.Application.csproj" />
     <ProjectReference Include="..\ImperialBackend.Infrastructure\ImperialBackend.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Data.CData.Databricks">
+      <HintPath>lib/System.Data.CData.Databricks.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="lib/System.Data.CData.Databricks.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('lib/System.Data.CData.Databricks.dll')" />
   </ItemGroup>
 
 </Project>

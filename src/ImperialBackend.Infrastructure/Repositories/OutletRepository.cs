@@ -51,20 +51,8 @@ public class OutletRepository : IOutletRepository
         _logger.LogDebug("Getting outlets with filters - Page: {PageNumber}, PageSize: {PageSize}, SortBy: {SortBy}", 
             pageNumber, pageSize, sortBy);
 
-        var query = _context.Outlets.AsNoTracking().AsQueryable();
-
-        // Apply filters efficiently at database level
-        query = ApplyFilters(query, tier, chainType, isActive, city, state, searchTerm, 
-            minRank, maxRank, needsVisit, maxDaysSinceVisit, highPerforming, minAchievementPercentage);
-
-        // Apply sorting at database level
-        query = ApplySorting(query, sortBy, sortDirection);
-
-        // Apply pagination
-        var skipEf = (pageNumber - 1) * pageSize;
-        query = query.Skip(skipEf).Take(pageSize);
-
-        return await query.ToListAsync(cancellationToken);
+        // Temporary: fetch all records without filters/sorting/pagination to validate provider pipeline
+        return await _context.Outlets.AsNoTracking().ToListAsync(cancellationToken);
     }
 
     public async Task<int> GetCountAsync(

@@ -17,41 +17,50 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
     /// <param name="builder">The entity type builder</param>
     public void Configure(EntityTypeBuilder<Outlet> builder)
     {
-        builder.ToTable("factoutlet", "mart_it");
+        builder.ToTable("factoutlet_view", "mart_it");
 
         // Primary key
         builder.HasKey(o => o.Id);
 
         // Properties
         builder.Property(o => o.Id)
+            .HasColumnName("Id")
             .ValueGeneratedNever(); // We generate GUIDs in the domain
 
         builder.Property(o => o.Name)
+            .HasColumnName("Name")
             .IsRequired()
             .HasMaxLength(200);
 
         builder.Property(o => o.Tier)
+            .HasColumnName("Tier")
             .IsRequired()
             .HasMaxLength(50);
 
         builder.Property(o => o.Rank)
+            .HasColumnName("Rank")
             .IsRequired();
 
         builder.Property(o => o.ChainType)
+            .HasColumnName("ChainType")
             .IsRequired()
             .HasConversion<int>();
 
-        builder.Property(o => o.LastVisitDate);
+        builder.Property(o => o.LastVisitDate)
+            .HasColumnName("LastVisitDate");
 
         builder.Property(o => o.VolumeSoldKg)
+            .HasColumnName("VolumeSoldKg")
             .HasColumnType("decimal(18,2)")
             .IsRequired();
 
         builder.Property(o => o.VolumeTargetKg)
+            .HasColumnName("VolumeTargetKg")
             .HasColumnType("decimal(18,2)")
             .IsRequired();
 
         builder.Property(o => o.IsActive)
+            .HasColumnName("IsActive")
             .IsRequired();
 
         // Configure Money value object for Sales
@@ -99,14 +108,18 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
 
         // Audit properties
         builder.Property(o => o.CreatedAt)
+            .HasColumnName("CreatedAt")
             .IsRequired();
 
-        builder.Property(o => o.UpdatedAt);
+        builder.Property(o => o.UpdatedAt)
+            .HasColumnName("UpdatedAt");
 
         builder.Property(o => o.CreatedBy)
+            .HasColumnName("CreatedBy")
             .HasMaxLength(100);
 
         builder.Property(o => o.UpdatedBy)
+            .HasColumnName("UpdatedBy")
             .HasMaxLength(100);
 
         // Indexes for performance

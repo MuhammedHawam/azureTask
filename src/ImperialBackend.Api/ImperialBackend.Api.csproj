@@ -27,6 +27,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning" Version="5.1.0" />
     <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="8.0.2" />
     <PackageReference Include="CData.EntityFrameworkCore.Databricks" Version="23.0.8839" />
+    <PackageReference Include="System.Data.CData.Databricks" Version="24.0.0.40" />
   </ItemGroup>
 
   <ItemGroup>

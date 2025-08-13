@@ -61,6 +61,11 @@ public record CreateOutletCommand : IRequest<Result<OutletDto>>
     public DateTime? LastVisitDate { get; init; }
 
     /// <summary>
+    /// Gets the stock risk
+    /// </summary>
+    public StockRisk StockRisk { get; init; } = StockRisk.Medium;
+
+    /// <summary>
     /// Gets the user identifier who is creating the outlet
     /// </summary>
     public string UserId { get; init; } = string.Empty;

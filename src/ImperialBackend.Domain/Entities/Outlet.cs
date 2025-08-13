@@ -29,6 +29,7 @@ public class Outlet : BaseEntity
         VolumeSoldKg = 0;
         VolumeTargetKg = 0;
         IsActive = true;
+        StockRisk = StockRisk.Medium;
     }
 
     // Parameterless constructor for EF Core
@@ -85,6 +86,11 @@ public class Outlet : BaseEntity
     public bool IsActive { get; private set; }
 
     /// <summary>
+    /// Gets the stock risk level
+    /// </summary>
+    public StockRisk StockRisk { get; private set; }
+
+    /// <summary>
     /// Updates the outlet information
     /// </summary>
     /// <param name="name">The new outlet name</param>
@@ -100,6 +106,17 @@ public class Outlet : BaseEntity
         Rank = ValidateRank(rank);
         ChainType = chainType;
         Address = address ?? throw new ArgumentNullException(nameof(address));
+        UpdateAuditInfo(userId);
+    }
+
+    /// <summary>
+    /// Sets the stock risk level for the outlet
+    /// </summary>
+    /// <param name="risk">The new stock risk level</param>
+    /// <param name="userId">The user making the update</param>
+    public void SetStockRisk(StockRisk risk, string userId)
+    {
+        StockRisk = risk;
         UpdateAuditInfo(userId);
     }
 

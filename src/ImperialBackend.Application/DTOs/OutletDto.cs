@@ -68,6 +68,11 @@ public class OutletDto
     public bool IsActive { get; set; }
 
     /// <summary>
+    /// Gets or sets the stock risk
+    /// </summary>
+    public StockRisk StockRisk { get; set; }
+
+    /// <summary>
     /// Gets or sets the creation date
     /// </summary>
     public DateTime CreatedAt { get; set; }
@@ -198,6 +203,11 @@ public class CreateOutletDto
     /// Gets or sets the last visit date
     /// </summary>
     public DateTime? LastVisitDate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the stock risk
+    /// </summary>
+    public StockRisk StockRisk { get; set; } = StockRisk.Medium;
 }
 
 /// <summary>
@@ -254,4 +264,9 @@ public class UpdateOutletDto
     /// Gets or sets the last visit date
     /// </summary>
     public DateTime? LastVisitDate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the stock risk
+    /// </summary>
+    public StockRisk StockRisk { get; set; } = StockRisk.Medium;
 }

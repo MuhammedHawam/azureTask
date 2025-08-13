@@ -63,6 +63,11 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
             .HasColumnName("IsActive")
             .IsRequired();
 
+        builder.Property(o => o.StockRisk)
+            .HasColumnName("StockRisk")
+            .HasConversion<int>()
+            .IsRequired();
+
         // Configure Money value object for Sales
         builder.OwnsOne(o => o.Sales, salesBuilder =>
         {

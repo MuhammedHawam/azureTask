@@ -82,6 +82,7 @@ public class CreateOutletCommandHandler : IRequestHandler<CreateOutletCommand, R
             outlet.UpdateSales(sales, request.UserId);
             outlet.UpdateVolumeSold(request.VolumeSoldKg, request.UserId);
             outlet.UpdateVolumeTarget(request.VolumeTargetKg, request.UserId);
+            outlet.SetStockRisk(request.StockRisk, request.UserId);
             outlet.SetCreationInfo(request.UserId);
 
             // Record visit if provided

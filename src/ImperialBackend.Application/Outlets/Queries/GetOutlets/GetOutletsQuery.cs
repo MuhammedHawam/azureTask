@@ -74,6 +74,11 @@ public record GetOutletsQuery : IRequest<Result<PagedResult<OutletDto>>>
     public decimal MinAchievementPercentage { get; init; } = 80.0m;
 
     /// <summary>
+    /// Gets the stock risk filter (optional)
+    /// </summary>
+    public StockRisk? StockRisk { get; init; }
+
+    /// <summary>
     /// Gets the page number (1-based)
     /// </summary>
     [DefaultValue(1)]

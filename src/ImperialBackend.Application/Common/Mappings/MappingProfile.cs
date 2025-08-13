@@ -18,7 +18,8 @@ public class MappingProfile : Profile
     {
         CreateMap<Outlet, OutletDto>()
             .ForMember(dest => dest.Sales, opt => opt.MapFrom(src => src.Sales.Amount))
-            .ForMember(dest => dest.Currency, opt => opt.MapFrom(src => src.Sales.Currency));
+            .ForMember(dest => dest.Currency, opt => opt.MapFrom(src => src.Sales.Currency))
+            .ForMember(dest => dest.StockRisk, opt => opt.MapFrom(src => src.StockRisk));
 
         CreateMap<Address, AddressDto>().ReverseMap();
 

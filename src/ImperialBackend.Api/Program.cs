@@ -116,7 +116,10 @@ builder.Services.AddAuthorization();
 // Configure Entity Framework with SQL Server provider targeting Databricks SQL Warehouse
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sql => sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)
+    );
     if (builder.Environment.IsDevelopment())
     {
         options.EnableSensitiveDataLogging();

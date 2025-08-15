@@ -8,7 +8,7 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
 {
     public void Configure(EntityTypeBuilder<Outlet> builder)
     {
-        builder.ToTable("factoutlet_view", "mart_it");
+        builder.ToTable("factoutlet", "mart_it");
 
         builder.Ignore(o => o.Id);
         builder.Ignore(o => o.CreatedAt);

@@ -17,10 +17,12 @@ public class OutletRepository : IOutletRepository
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<Outlet?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Outlet?> GetByIdAsync(string outletIdentifier, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Getting outlet by Guid Id is no longer supported. Returning null.");
-        return await Task.FromResult<Outlet?>(null);
+        _logger.LogDebug("Getting outlet by identifier: {OutletIdentifier}", outletIdentifier);
+        return await _context.Outlets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.OutletIdentifier == outletIdentifier, cancellationToken);
     }
 
     public async Task<IEnumerable<Outlet>> GetAllAsync(
@@ -86,16 +88,26 @@ public class OutletRepository : IOutletRepository
         return outlet;
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(string outletIdentifier, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Delete by Guid Id is no longer supported. Returning false.");
-        return await Task.FromResult(false);
+        _logger.LogDebug("Deleting outlet: {OutletIdentifier}", outletIdentifier);
+
+        var outlet = await _context.Outlets.FirstOrDefaultAsync(o => o.OutletIdentifier == outletIdentifier, cancellationToken);
+        if (outlet == null)
+        {
+            _logger.LogWarning("Outlet not found for deletion: {OutletIdentifier}", outletIdentifier);
+            return false;
+        }
+
+        _context.Outlets.Remove(outlet);
+        await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Successfully deleted outlet: {OutletIdentifier}", outletIdentifier);
+        return true;
     }
 
-    public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsAsync(string outletIdentifier, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Exists by Guid Id is no longer supported. Returning false.");
-        return await Task.FromResult(false);
+        return await _context.Outlets.AnyAsync(o => o.OutletIdentifier == outletIdentifier, cancellationToken);
     }
 
     private static IQueryable<Outlet> ApplyFilters(

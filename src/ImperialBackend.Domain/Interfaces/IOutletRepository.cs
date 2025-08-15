@@ -4,7 +4,7 @@ namespace ImperialBackend.Domain.Interfaces;
 
 public interface IOutletRepository
 {
-    Task<Outlet?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Outlet?> GetByIdAsync(string outletIdentifier, CancellationToken cancellationToken = default);
 
     Task<IEnumerable<Outlet>> GetAllAsync(
         int? year = null,
@@ -26,7 +26,7 @@ public interface IOutletRepository
 
     Task<Outlet> AddAsync(Outlet outlet, CancellationToken cancellationToken = default);
     Task<Outlet> UpdateAsync(Outlet outlet, CancellationToken cancellationToken = default);
-    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(string outletIdentifier, CancellationToken cancellationToken = default);
 
-    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<bool> ExistsAsync(string outletIdentifier, CancellationToken cancellationToken = default);
 }

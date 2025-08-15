@@ -45,16 +45,10 @@ public class GetOutletsQueryHandler : IRequestHandler<GetOutletsQuery, Result<Pa
             _logger.LogInformation("Getting outlets - Page: {PageNumber}, PageSize: {PageSize}, Filters: {@Filters}",
                 request.PageNumber, request.PageSize, new
                 {
-                    request.Tier,
-                    request.ChainType,
-                    request.IsActive,
-                    request.City,
-                    request.State,
+                    request.Year,
+                    request.Week,
+                    request.HealthStatus,
                     request.SearchTerm,
-                    request.MinRank,
-                    request.MaxRank,
-                    request.NeedsVisit,
-                    request.HighPerforming,
                     request.SortBy,
                     request.SortDirection
                 });
@@ -72,18 +66,10 @@ public class GetOutletsQueryHandler : IRequestHandler<GetOutletsQuery, Result<Pa
 
             // Get outlets with all filters applied at database level
             var outlets = await _outletRepository.GetAllAsync(
-                tier: request.Tier,
-                chainType: request.ChainType,
-                isActive: request.IsActive,
-                city: request.City,
-                state: request.State,
+                year: request.Year,
+                week: request.Week,
+                healthStatus: request.HealthStatus,
                 searchTerm: request.SearchTerm,
-                minRank: request.MinRank,
-                maxRank: request.MaxRank,
-                needsVisit: request.NeedsVisit,
-                maxDaysSinceVisit: request.MaxDaysSinceVisit,
-                highPerforming: request.HighPerforming,
-                minAchievementPercentage: request.MinAchievementPercentage,
                 pageNumber: request.PageNumber,
                 pageSize: request.PageSize,
                 sortBy: request.SortBy,
@@ -92,18 +78,10 @@ public class GetOutletsQueryHandler : IRequestHandler<GetOutletsQuery, Result<Pa
 
             // Get total count with same filters
             var totalCount = await _outletRepository.GetCountAsync(
-                tier: request.Tier,
-                chainType: request.ChainType,
-                isActive: request.IsActive,
-                city: request.City,
-                state: request.State,
+                year: request.Year,
+                week: request.Week,
+                healthStatus: request.HealthStatus,
                 searchTerm: request.SearchTerm,
-                minRank: request.MinRank,
-                maxRank: request.MaxRank,
-                needsVisit: request.NeedsVisit,
-                maxDaysSinceVisit: request.MaxDaysSinceVisit,
-                highPerforming: request.HighPerforming,
-                minAchievementPercentage: request.MinAchievementPercentage,
                 cancellationToken: cancellationToken);
 
             // Map to DTOs

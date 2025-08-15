@@ -10,8 +10,10 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
     {
         builder.ToTable("factoutlet_view", "mart_it");
 
-        builder.HasKey(o => o.Id);
-        builder.Property(o => o.Id).HasColumnName("Id").ValueGeneratedNever();
+        builder.Ignore(o => o.Id);
+        builder.HasKey(o => o.OutletIdentifier);
+
+        builder.Property(o => o.OutletIdentifier).HasColumnName("OutletIdentifier").HasMaxLength(100);
 
         builder.Property(o => o.Year).HasColumnName("year");
         builder.Property(o => o.Week).HasColumnName("week");
@@ -24,7 +26,6 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
         builder.Property(o => o.HealthStatus).HasColumnName("health_status").HasMaxLength(50);
         builder.Property(o => o.StoreRank).HasColumnName("store_rank");
         builder.Property(o => o.OutletName).HasColumnName("OutletName").HasMaxLength(200);
-        builder.Property(o => o.OutletIdentifier).HasColumnName("OutletIdentifier").HasMaxLength(100);
         builder.Property(o => o.AddressLine1).HasColumnName("AddressLine1").HasMaxLength(200);
         builder.Property(o => o.State).HasColumnName("State").HasMaxLength(50);
         builder.Property(o => o.County).HasColumnName("County").HasMaxLength(100);

@@ -11,6 +11,11 @@ public class OutletConfiguration : IEntityTypeConfiguration<Outlet>
         builder.ToTable("factoutlet_view", "mart_it");
 
         builder.Ignore(o => o.Id);
+        builder.Ignore(o => o.CreatedAt);
+        builder.Ignore(o => o.UpdatedAt);
+        builder.Ignore(o => o.CreatedBy);
+        builder.Ignore(o => o.UpdatedBy);
+
         builder.HasKey(o => o.OutletIdentifier);
 
         builder.Property(o => o.OutletIdentifier).HasColumnName("OutletIdentifier").HasMaxLength(100);

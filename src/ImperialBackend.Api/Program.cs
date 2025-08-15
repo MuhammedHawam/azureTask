@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using CData.EntityFrameworkCore.Databricks;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using System.Reflection;
@@ -113,11 +114,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Configure Entity Framework with Microsoft's official SQL Server provider for Databricks
-// Databricks SQL Warehouses are compatible with SQL Server driver
+// Configure Entity Framework with SQL Server provider targeting Databricks SQL Warehouse
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.UseDatabricks(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    );
     if (builder.Environment.IsDevelopment())
     {
         options.EnableSensitiveDataLogging();
@@ -140,6 +142,8 @@ builder.Services.AddAutoMapper(typeof(MappingProfile));
 
 // Register repositories
 builder.Services.AddScoped<IOutletRepository, OutletRepository>();
+
+
 
 // Configure CORS for frontend integration
 builder.Services.AddCors(options =>

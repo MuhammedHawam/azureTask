@@ -2,99 +2,63 @@ using FluentValidation;
 
 namespace ImperialBackend.Application.Outlets.Commands.CreateOutlet;
 
-/// <summary>
-/// Validator for CreateOutletCommand
-/// </summary>
 public class CreateOutletCommandValidator : AbstractValidator<CreateOutletCommand>
 {
-    /// <summary>
-    /// Initializes a new instance of the CreateOutletCommandValidator class
-    /// </summary>
     public CreateOutletCommandValidator()
     {
-        RuleFor(x => x.Name)
-            .NotEmpty()
-            .WithMessage("Outlet name is required")
-            .MaximumLength(200)
-            .WithMessage("Outlet name cannot exceed 200 characters");
+        RuleFor(x => x.Year)
+            .GreaterThanOrEqualTo(1900)
+            .WithMessage("Year must be >= 1900");
 
-        RuleFor(x => x.Tier)
-            .NotEmpty()
-            .WithMessage("Outlet tier is required")
-            .MaximumLength(50)
-            .WithMessage("Outlet tier cannot exceed 50 characters");
+        RuleFor(x => x.Week)
+            .InclusiveBetween(1, 53)
+            .WithMessage("Week must be between 1 and 53");
 
-        RuleFor(x => x.Rank)
-            .GreaterThan(0)
-            .WithMessage("Outlet rank must be greater than zero");
-
-        RuleFor(x => x.ChainType)
-            .IsInEnum()
-            .WithMessage("Invalid chain type");
-
-        RuleFor(x => x.Sales)
+        RuleFor(x => x.TotalOuterQuantity)
             .GreaterThanOrEqualTo(0)
-            .WithMessage("Sales amount cannot be negative");
+            .WithMessage("TotalOuterQuantity cannot be negative");
 
-        RuleFor(x => x.Currency)
-            .NotEmpty()
-            .WithMessage("Currency is required")
-            .Length(3)
-            .WithMessage("Currency must be a 3-letter ISO 4217 code")
-            .Matches("^[A-Z]{3}$")
-            .WithMessage("Currency must be uppercase letters only");
-
-        RuleFor(x => x.VolumeSoldKg)
+        RuleFor(x => x.CountOuterQuantity)
             .GreaterThanOrEqualTo(0)
-            .WithMessage("Volume sold cannot be negative");
+            .WithMessage("CountOuterQuantity cannot be negative");
 
-        RuleFor(x => x.VolumeTargetKg)
+        RuleFor(x => x.TotalSales6w)
             .GreaterThanOrEqualTo(0)
-            .WithMessage("Volume target cannot be negative");
+            .WithMessage("TotalSales6w cannot be negative");
 
-        RuleFor(x => x.Address)
-            .NotNull()
-            .WithMessage("Address is required");
-
-        RuleFor(x => x.Address.Street)
+        RuleFor(x => x.HealthStatus)
             .NotEmpty()
-            .WithMessage("Street address is required")
-            .MaximumLength(200)
-            .WithMessage("Street address cannot exceed 200 characters")
-            .When(x => x.Address != null);
+            .WithMessage("HealthStatus is required")
+            .MaximumLength(50);
 
-        RuleFor(x => x.Address.City)
+        RuleFor(x => x.StoreRank)
+            .GreaterThanOrEqualTo(0)
+            .WithMessage("StoreRank cannot be negative");
+
+        RuleFor(x => x.OutletName)
             .NotEmpty()
-            .WithMessage("City is required")
-            .MaximumLength(100)
-            .WithMessage("City cannot exceed 100 characters")
-            .When(x => x.Address != null);
+            .WithMessage("OutletName is required")
+            .MaximumLength(200);
 
-        RuleFor(x => x.Address.State)
+        RuleFor(x => x.OutletIdentifier)
+            .NotEmpty()
+            .WithMessage("OutletIdentifier is required")
+            .MaximumLength(100);
+
+        RuleFor(x => x.AddressLine1)
+            .NotEmpty()
+            .WithMessage("AddressLine1 is required")
+            .MaximumLength(200);
+
+        RuleFor(x => x.State)
             .NotEmpty()
             .WithMessage("State is required")
-            .MaximumLength(100)
-            .WithMessage("State cannot exceed 100 characters")
-            .When(x => x.Address != null);
+            .MaximumLength(50);
 
-        RuleFor(x => x.Address.PostalCode)
+        RuleFor(x => x.County)
             .NotEmpty()
-            .WithMessage("Postal code is required")
-            .MaximumLength(20)
-            .WithMessage("Postal code cannot exceed 20 characters")
-            .When(x => x.Address != null);
-
-        RuleFor(x => x.Address.Country)
-            .NotEmpty()
-            .WithMessage("Country is required")
-            .MaximumLength(100)
-            .WithMessage("Country cannot exceed 100 characters")
-            .When(x => x.Address != null);
-
-        RuleFor(x => x.LastVisitDate)
-            .LessThanOrEqualTo(DateTime.UtcNow)
-            .WithMessage("Last visit date cannot be in the future")
-            .When(x => x.LastVisitDate.HasValue);
+            .WithMessage("County is required")
+            .MaximumLength(100);
 
         RuleFor(x => x.UserId)
             .NotEmpty()
